@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'screens/timeline_screen.dart';
 import 'services/hive_service.dart';
 
 Future<void> main() async {
@@ -7,7 +9,11 @@ Future<void> main() async {
 
   await HiveService.init();
 
-  runApp(const MyApp());
+  runApp(
+    const ProviderScope(
+      child: MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -16,16 +22,15 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Timeline App',
+      debugShowCheckedModeBanner: false,
+      title: 'Task Timeline',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.blue,
+        ),
         useMaterial3: true,
       ),
-      home: const Scaffold(
-        body: Center(
-          child: Text('Timeline App'),
-        ),
-      ),
+      home: const TimelineScreen(),
     );
   }
 }
