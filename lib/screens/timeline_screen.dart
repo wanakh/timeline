@@ -582,74 +582,96 @@ List<_TimelineEntry> _buildTimelineEntries(
       );
     }
   }
-
-  final hasTodayEntry = entries.any(
-    (entry) =>
-        entry.task != null &&
-        DateUtils.isSameDay(
-          entry.displayDate,
-          today,
-        ),
+  // 「今日」の表示は必ず追加する。
+  // 今日のタスクが存在する場合でも、
+  // 今日を含む複数日タスクが存在する場合でも、
+  // 「今日」を示すマーカーは必要。
+  entries.add(
+    _TimelineEntry(
+      task: null,
+      displayDate: today,
+      isOriginalStart: false,
+      isTodayMarker: true,
+    ),
   );
 
-  if (!hasTodayEntry) {
-    entries.add(
-      _TimelineEntry(
-        task: null,
-        displayDate: today,
-        isOriginalStart: false,
-        isTodayMarker: true,
-      ),
-    );
+  entries.sort((a, b) {
+  // まず表示日で並べる。
+  final dateCompare = a.displayDate.compareTo(b.displayDate);
+
+  if (dateCompare != 0) {
+    return dateCompare;
   }
 
-  entries.sort((a, b) {
-    final dateCompare =
-        a.displayDate.compareTo(b.displayDate);
+  // 今日マーカーは必ずその日の先頭。
+  if (a.isTodayMarker != b.isTodayMarker) {
+    return a.isTodayMarker ? -1 : 1;
+  }
 
-    if (dateCompare != 0) {
-      return dateCompare;
+  final aTask = a.task;
+  final bTask = b.task;
+
+  // 今日の位置では、
+  // 「今日を含む複数日タスク」を
+  // 今日マーカーの直後に置く。
+  final aIsTodayPeriod = aTask != null &&
+      !DateUtils.isSameDay(
+        aTask.startDate,
+        aTask.endDate,
+      ) &&
+      DateUtils.isSameDay(
+        a.displayDate,
+        DateTime.now(),
+      );
+
+  final bIsTodayPeriod = bTask != null &&
+      !DateUtils.isSameDay(
+        bTask.startDate,
+        bTask.endDate,
+      ) &&
+      DateUtils.isSameDay(
+        b.displayDate,
+        DateTime.now(),
+      );
+
+  if (aIsTodayPeriod != bIsTodayPeriod) {
+    return aIsTodayPeriod ? -1 : 1;
+  }
+
+  // 同じ日の通常タスクでは、
+  // 日付のみ → 時刻指定の順。
+  final aStartAt = aTask?.startAt;
+  final bStartAt = bTask?.startAt;
+
+  if (aStartAt == null && bStartAt != null) {
+    return -1;
+  }
+
+  if (aStartAt != null && bStartAt == null) {
+    return 1;
+  }
+
+  if (aStartAt != null && bStartAt != null) {
+    final timeCompare = aStartAt.compareTo(bStartAt);
+
+    if (timeCompare != 0) {
+      return timeCompare;
     }
+  }
 
-    if (a.isTodayMarker && !b.isTodayMarker) {
-      return -1;
+  // 同条件なら開始日を基準にする。
+  if (aTask != null && bTask != null) {
+    final startCompare =
+        aTask.startDate.compareTo(bTask.startDate);
+
+    if (startCompare != 0) {
+      return startCompare;
     }
+  }
 
-    if (!a.isTodayMarker && b.isTodayMarker) {
-      return 1;
-    }
+  return 0;
+});
 
-    if (a.isOriginalStart && !b.isOriginalStart) {
-      return -1;
-    }
-
-    if (!a.isOriginalStart && b.isOriginalStart) {
-      return 1;
-    }
-
-    final aTime = a.task?.startAt;
-    final bTime = b.task?.startAt;
-
-    if (aTime == null && bTime == null) {
-      return 0;
-    }
-
-    if (aTime == null) {
-      return -1;
-    }
-
-    if (bTime == null) {
-      return 1;
-    }
-
-    final aMinutes =
-        aTime.hour * 60 + aTime.minute;
-
-    final bMinutes =
-        bTime.hour * 60 + bTime.minute;
-
-    return aMinutes.compareTo(bMinutes);
-  });
 
   return entries;
 }
@@ -720,7 +742,6 @@ class _DateTimeLabel extends StatelessWidget {
 
   final _TimelineEntry entry;
   final _TimelineEntry? previousEntry;
-
   @override
   Widget build(BuildContext context) {
     final task = entry.task;
@@ -736,7 +757,7 @@ class _DateTimeLabel extends StatelessWidget {
         ? '${date.month}/${date.day} (今日)'
         : '${date.month}/${date.day}';
 
-    // 今日マーカーは、日付だけを表示する。
+    // 今日マーカー。
     if (task == null) {
       return Align(
         alignment: Alignment.topRight,
@@ -751,6 +772,45 @@ class _DateTimeLabel extends StatelessWidget {
       );
     }
 
+    // 複数日にまたがるタスク。
+    //
+    // 開始位置でも今日の位置でも、
+    // 必ず「開始日 ～ 終了日」を表示する。
+    if (!_isSameDate(task.startDate, task.endDate)) {
+      final periodText =
+          '${task.startDate.month}/${task.startDate.day}'
+          ' ～ '
+          '${task.endDate.month}/${task.endDate.day}';
+
+      return Align(
+        alignment: Alignment.topRight,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              periodText,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+              textAlign: TextAlign.right,
+            ),
+            if (task.startAt != null) ...[
+              const SizedBox(height: 2),
+              Text(
+                _formatPeriodTime(task),
+                style: const TextStyle(
+                  fontSize: 12,
+                ),
+                textAlign: TextAlign.right,
+              ),
+            ],
+          ],
+        ),
+      );
+    }
+
+    // 1日だけのタスク。
     final isFirstEntryOfDay =
         previousEntry == null ||
         !DateUtils.isSameDay(
@@ -759,7 +819,7 @@ class _DateTimeLabel extends StatelessWidget {
         );
 
     // 同じ日の2件目以降で時刻がない場合、
-    // 左側には何も表示しない。
+    // 日付も時刻も表示しない。
     if (!isFirstEntryOfDay && task.startAt == null) {
       return const SizedBox.shrink();
     }
@@ -806,12 +866,38 @@ class _DateTimeLabel extends StatelessWidget {
     );
   }
 
+  String _formatPeriodTime(Task task) {
+    final startAt = task.startAt;
+    final endAt = task.endAt;
+
+    if (startAt != null && endAt != null) {
+      return '${_formatTime(startAt)} ～ ${_formatTime(endAt)}';
+    }
+
+    if (startAt != null) {
+      return _formatTime(startAt);
+    }
+
+    if (endAt != null) {
+      return _formatTime(endAt);
+    }
+
+    return '';
+  }
+
   String _formatTime(DateTime time) {
     final hour = time.hour.toString().padLeft(2, '0');
     final minute = time.minute.toString().padLeft(2, '0');
 
     return '$hour:$minute';
   }
+
+  bool _isSameDate(DateTime a, DateTime b) {
+    return a.year == b.year &&
+        a.month == b.month &&
+        a.day == b.day;
+  }
+
 }
 
 class _TaskContent extends StatelessWidget {
@@ -847,38 +933,8 @@ class _TaskContent extends StatelessWidget {
             ),
           ),
         ],
-        if (!_isSameDate(
-          task.startDate,
-          task.endDate,
-        )) ...[
-          const SizedBox(height: 8),
-          Text(
-            _formatPeriod(task),
-            style: Theme.of(context)
-                .textTheme
-                .bodySmall
-                ?.copyWith(
-                  decoration: textDecoration,
-                ),
-          ),
-        ],
       ],
     );
-  }
-
-  String _formatPeriod(Task task) {
-    final startDate = task.startDate;
-    final endDate = task.endDate;
-
-    final startDateText =
-        '${startDate.month}/${startDate.day}';
-
-    final endDateText =
-        '${endDate.month}/${endDate.day}';
-
-    // 時刻はタイムライン左側に表示するため、
-    // Taskカードには日付範囲だけを表示する。
-    return '$startDateText ～ $endDateText';
   }
 
   bool _isSameDate(DateTime a, DateTime b) {
