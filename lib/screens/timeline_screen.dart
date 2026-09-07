@@ -225,6 +225,53 @@ class _TimelineEntry {
   final bool isOriginalStart;
 }
 
+/// タイムライン全体のレイアウトに使用する定数。
+///
+/// 日時欄だけに幅の制約を設け、Task側は残りの幅を利用する。
+class _TimelineLayoutConstants {
+  const _TimelineLayoutConstants._();
+
+  /// スマートフォンとタブレットを分ける幅。
+  static const double tabletBreakpoint = 600;
+
+  /// スマートフォンで日時欄に使用する画面幅の割合。
+  static const double dateColumnRatio = 0.28;
+
+  /// 日時欄の最小幅。
+  static const double minDateColumnWidth = 100;
+
+  /// スマートフォンでの日時欄の最大幅。
+  static const double maxPhoneDateColumnWidth = 125;
+
+  /// タブレット以上での日時欄の幅。
+  static const double tabletDateColumnWidth = 140;
+
+  /// Timeline全体の左右余白。
+  static const double horizontalPadding = 16;
+
+  /// 日時欄とTimelineの間隔。
+  static const double dateToTimelineSpacing = 12;
+
+  /// Taskカード下側の間隔。
+  static const double taskBottomSpacing = 16;
+
+  static double dateColumnWidth(double availableWidth) {
+    if (availableWidth >= tabletBreakpoint) {
+      return tabletDateColumnWidth;
+    }
+
+    final calculatedWidth =
+        availableWidth * dateColumnRatio;
+
+    ///return calculatedWidth.clamp(
+      ///minDateColumnWidth,
+      ///maxPhoneDateColumnWidth,
+    ///);
+
+    return calculatedWidth;
+  }
+}
+
 class _TaskTimeline extends StatelessWidget {
   const _TaskTimeline({
     required this.tasks,
@@ -236,74 +283,117 @@ class _TaskTimeline extends StatelessWidget {
   final Future<void> Function(Task task) onToggleCompleted;
   final Future<void> Function(Task task) onEdit;
 
+  static const double _maxTimelineWidth = 900;
+
   @override
   Widget build(BuildContext context) {
     final entries = _buildTimelineEntries(tasks);
 
-    return Timeline.tileBuilder(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 16,
-        vertical: 24,
-      ),
-      builder: TimelineTileBuilder.connected(
-        itemCount: entries.length,
-        connectionDirection: ConnectionDirection.after,
-        contentsAlign: ContentsAlign.basic,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final timelineWidth = constraints.maxWidth
+            .clamp(0.0, _maxTimelineWidth);
 
-        oppositeContentsBuilder: (context, index) {
-          final entry = entries[index];
+        final dateColumnWidth =
+            _TimelineLayoutConstants.dateColumnWidth(
+          timelineWidth,
+        );
 
-          return Padding(
-            padding: const EdgeInsets.only(
-              right: 12,
+        return Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            width: timelineWidth,
+            child: Timeline.tileBuilder(
+              padding: const EdgeInsets.symmetric(
+                horizontal:
+                    _TimelineLayoutConstants.horizontalPadding,
+                vertical: 24,
+              ),
+              builder: TimelineTileBuilder.connected(
+                itemCount: entries.length,
+                connectionDirection: ConnectionDirection.after,
+                contentsAlign: ContentsAlign.basic,
+
+                nodePositionBuilder: (context, index) {
+                  // パディングを除いた実際のコンテンツ幅
+                  final contentWidth = timelineWidth -
+                      (_TimelineLayoutConstants.horizontalPadding * 2);
+
+                  if (contentWidth <= 0) return 0.2;
+                  // 日時カラムの幅が全体に占める割合を求める
+                  final position = dateColumnWidth / contentWidth;
+
+                  // 0.0 ~ 1.0 の範囲に収める
+                  return position.clamp(0.0, 1.0);
+                },
+
+                oppositeContentsBuilder: (context, index) {
+                  final entry = entries[index];
+
+                  return SizedBox(
+                    width: dateColumnWidth,
+                    child: Padding(
+                      padding: const EdgeInsets.only(
+                        right:
+                            _TimelineLayoutConstants
+                                .dateToTimelineSpacing,
+                      ),
+                      child: _DateTimeLabel(
+                        entry: entry,
+                        previousEntry:
+                            index == 0
+                                ? null
+                                : entries[index - 1],
+                      ),
+                    ),
+                  );
+                },
+
+                contentsBuilder: (context, index) {
+                  final entry = entries[index];
+
+                  return Padding(
+                    padding: const EdgeInsets.only(
+                      left: 12,
+                      bottom:
+                          _TimelineLayoutConstants
+                              .taskBottomSpacing,
+                    ),
+                    child: _TaskCard(
+                      task: entry.task,
+                      onToggleCompleted: () {
+                        return onToggleCompleted(entry.task);
+                      },
+                      onEdit: () {
+                        return onEdit(entry.task);
+                      },
+                    ),
+                  );
+                },
+
+                indicatorBuilder: (context, index) {
+                  final task = entries[index].task;
+
+                  return GestureDetector(
+                    onTap: () {
+                      onToggleCompleted(task);
+                    },
+                    child: DotIndicator(
+                      color: task.isCompleted
+                          ? Colors.grey
+                          : null,
+                    ),
+                  );
+                },
+
+                connectorBuilder: (context, index, type) {
+                  return const SolidLineConnector();
+                },
+              ),
             ),
-            child: _DateTimeLabel(
-              entry: entry,
-              previousEntry:
-                  index == 0 ? null : entries[index - 1],
-            ),
-          );
-        },
-
-        contentsBuilder: (context, index) {
-          final entry = entries[index];
-
-          return Padding(
-            padding: const EdgeInsets.only(
-              left: 12,
-              bottom: 16,
-            ),
-            child: _TaskCard(
-              task: entry.task,
-              onToggleCompleted: () {
-                return onToggleCompleted(entry.task);
-              },
-              onEdit: () {
-                return onEdit(entry.task);
-              },
-            ),
-          );
-        },
-
-        indicatorBuilder: (context, index) {
-          final task = entries[index].task;
-
-          return GestureDetector(
-            onTap: () {
-              onToggleCompleted(task);
-            },
-            child: DotIndicator(
-              color: task.isCompleted
-                  ? Colors.grey
-                  : null,
-            ),
-          );
-        },
-
-        connectorBuilder: (context, index, type) {
-          return const SolidLineConnector();
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -884,7 +974,6 @@ class _TaskEditDialogState extends State<_TaskEditDialog> {
               ),
             ),
             const SizedBox(height: 20),
-
             Text(
               '日付',
               style: Theme.of(context)
@@ -895,7 +984,6 @@ class _TaskEditDialogState extends State<_TaskEditDialog> {
                   ),
             ),
             const SizedBox(height: 8),
-
             _DateEditButton(
               label: '開始日',
               date: _startDate,
@@ -907,9 +995,7 @@ class _TaskEditDialogState extends State<_TaskEditDialog> {
               date: _endDate,
               onPressed: _selectEndDate,
             ),
-
             const SizedBox(height: 20),
-
             Text(
               '時刻',
               style: Theme.of(context)
@@ -920,7 +1006,6 @@ class _TaskEditDialogState extends State<_TaskEditDialog> {
                   ),
             ),
             const SizedBox(height: 8),
-
             if (!hasTime)
               OutlinedButton.icon(
                 onPressed: _selectStartTime,
@@ -944,10 +1029,11 @@ class _TaskEditDialogState extends State<_TaskEditDialog> {
               const SizedBox(height: 4),
               TextButton(
                 onPressed: _clearStartTime,
-                child: const Text('時刻を削除して日付のみの予定にする'),
+                child: const Text(
+                  '時刻を削除して日付のみの予定にする',
+                ),
               ),
             ],
-
             if (_validationMessage != null) ...[
               const SizedBox(height: 12),
               Text(
@@ -1076,4 +1162,3 @@ class _TimeEditButton extends StatelessWidget {
     return '$hour:$minute';
   }
 }
-
