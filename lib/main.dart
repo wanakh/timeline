@@ -21,15 +21,30 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // シードカラーを好きな色に変更可能（例: Colors.indigo, Colors.deepOrange など）
+    const seedColor = Colors.teal;
+
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Task Timeline',
+      // ライトモード設定
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.blue,
+          seedColor: seedColor,
+          brightness: Brightness.light,
         ),
         useMaterial3: true,
       ),
+      // ダークモード設定
+      darkTheme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: seedColor,
+          brightness: Brightness.dark,
+        ),
+        useMaterial3: true,
+      ),
+      // OSの設定に合わせて自動でライト/ダークを切り替え
+      themeMode: ThemeMode.system,
       home: const TimelineScreen(),
     );
   }
