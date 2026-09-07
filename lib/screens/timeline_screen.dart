@@ -214,45 +214,36 @@ class _TestTaskData {
 }
 
 class _TimelineEntry {
+  final Task? task;
+  final DateTime displayDate;
+  final bool isOriginalStart;
+  final bool isTodayMarker;
+
   const _TimelineEntry({
     required this.task,
     required this.displayDate,
-    required this.isOriginalStart,
+    this.isOriginalStart = true,
+    this.isTodayMarker = false,
   });
-
-  final Task task;
-  final DateTime displayDate;
-  final bool isOriginalStart;
 }
 
-/// タイムライン全体のレイアウトに使用する定数。
-///
-/// 日時欄だけに幅の制約を設け、Task側は残りの幅を利用する。
 class _TimelineLayoutConstants {
   const _TimelineLayoutConstants._();
 
-  /// スマートフォンとタブレットを分ける幅。
   static const double tabletBreakpoint = 600;
 
-  /// スマートフォンで日時欄に使用する画面幅の割合。
   static const double dateColumnRatio = 0.28;
 
-  /// 日時欄の最小幅。
   static const double minDateColumnWidth = 100;
 
-  /// スマートフォンでの日時欄の最大幅。
   static const double maxPhoneDateColumnWidth = 125;
 
-  /// タブレット以上での日時欄の幅。
   static const double tabletDateColumnWidth = 140;
 
-  /// Timeline全体の左右余白。
   static const double horizontalPadding = 16;
 
-  /// 日時欄とTimelineの間隔。
   static const double dateToTimelineSpacing = 12;
 
-  /// Taskカード下側の間隔。
   static const double taskBottomSpacing = 16;
 
   static double dateColumnWidth(double availableWidth) {
@@ -263,16 +254,14 @@ class _TimelineLayoutConstants {
     final calculatedWidth =
         availableWidth * dateColumnRatio;
 
-    ///return calculatedWidth.clamp(
-      ///minDateColumnWidth,
-      ///maxPhoneDateColumnWidth,
-    ///);
-
-    return calculatedWidth;
+    return calculatedWidth.clamp(
+      minDateColumnWidth,
+      maxPhoneDateColumnWidth,
+    );
   }
 }
 
-class _TaskTimeline extends StatelessWidget {
+class _TaskTimeline extends StatefulWidget {
   const _TaskTimeline({
     required this.tasks,
     required this.onToggleCompleted,
@@ -283,16 +272,158 @@ class _TaskTimeline extends StatelessWidget {
   final Future<void> Function(Task task) onToggleCompleted;
   final Future<void> Function(Task task) onEdit;
 
+  @override
+  State<_TaskTimeline> createState() => _TaskTimelineState();
+}
+
+class _TaskTimelineState extends State<_TaskTimeline> {
   static const double _maxTimelineWidth = 900;
+
+  final ScrollController _scrollController = ScrollController();
+
+  bool _initialScrollDone = false;
+
+  @override
+  void initState() {
+    super.initState();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollToInitialPosition();
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant _TaskTimeline oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.tasks != widget.tasks) {
+      _initialScrollDone = false;
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollToInitialPosition();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _scrollToInitialPosition() {
+    if (!mounted || _initialScrollDone) {
+      return;
+    }
+
+    if (!_scrollController.hasClients) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollToInitialPosition();
+      });
+      return;
+    }
+
+    final entries = _buildTimelineEntries(widget.tasks);
+
+    if (entries.isEmpty) {
+      return;
+    }
+
+    final targetIndex = _findInitialTargetIndex(entries);
+
+    const estimatedItemHeight = 100.0;
+
+    final targetOffset =
+        targetIndex * estimatedItemHeight;
+
+    final maxScrollExtent =
+        _scrollController.position.maxScrollExtent;
+
+    final safeOffset = targetOffset.clamp(
+      0.0,
+      maxScrollExtent,
+    );
+
+    _scrollController.jumpTo(safeOffset);
+
+    _initialScrollDone = true;
+  }
+
+  int _findInitialTargetIndex(
+    List<_TimelineEntry> entries,
+  ) {
+    final now = DateTime.now();
+
+    final today = DateTime(
+      now.year,
+      now.month,
+      now.day,
+    );
+
+    final todayTaskIndices = <int>[];
+
+    for (var i = 0; i < entries.length; i++) {
+      final entry = entries[i];
+
+      if (entry.task == null) {
+        continue;
+      }
+
+      if (DateUtils.isSameDay(
+        entry.displayDate,
+        today,
+      )) {
+        todayTaskIndices.add(i);
+      }
+    }
+
+    if (todayTaskIndices.isEmpty) {
+      final markerIndex = entries.indexWhere(
+        (entry) => entry.isTodayMarker,
+      );
+
+      if (markerIndex != -1) {
+        return markerIndex;
+      }
+
+      return 0;
+    }
+
+    final timedTodayIndices = <int>[];
+
+    for (final index in todayTaskIndices) {
+      final task = entries[index].task!;
+
+      if (task.startAt != null) {
+        timedTodayIndices.add(index);
+      }
+    }
+
+    if (timedTodayIndices.isEmpty) {
+      return todayTaskIndices.first;
+    }
+
+    for (final index in timedTodayIndices) {
+      final task = entries[index].task!;
+
+      final startAt = task.startAt!;
+
+      if (!startAt.isBefore(now)) {
+        return index;
+      }
+    }
+
+    return timedTodayIndices.last;
+  }
 
   @override
   Widget build(BuildContext context) {
-    final entries = _buildTimelineEntries(tasks);
+    final entries = _buildTimelineEntries(widget.tasks);
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final timelineWidth = constraints.maxWidth
-            .clamp(0.0, _maxTimelineWidth);
+        final timelineWidth =
+            constraints.maxWidth.clamp(0.0, _maxTimelineWidth);
 
         final dateColumnWidth =
             _TimelineLayoutConstants.dateColumnWidth(
@@ -304,6 +435,7 @@ class _TaskTimeline extends StatelessWidget {
           child: SizedBox(
             width: timelineWidth,
             child: Timeline.tileBuilder(
+              controller: _scrollController,
               padding: const EdgeInsets.symmetric(
                 horizontal:
                     _TimelineLayoutConstants.horizontalPadding,
@@ -315,15 +447,16 @@ class _TaskTimeline extends StatelessWidget {
                 contentsAlign: ContentsAlign.basic,
 
                 nodePositionBuilder: (context, index) {
-                  // パディングを除いた実際のコンテンツ幅
                   final contentWidth = timelineWidth -
                       (_TimelineLayoutConstants.horizontalPadding * 2);
 
-                  if (contentWidth <= 0) return 0.2;
-                  // 日時カラムの幅が全体に占める割合を求める
-                  final position = dateColumnWidth / contentWidth;
+                  if (contentWidth <= 0) {
+                    return 0.2;
+                  }
 
-                  // 0.0 ~ 1.0 の範囲に収める
+                  final position =
+                      dateColumnWidth / contentWidth;
+
                   return position.clamp(0.0, 1.0);
                 },
 
@@ -352,6 +485,14 @@ class _TaskTimeline extends StatelessWidget {
                 contentsBuilder: (context, index) {
                   final entry = entries[index];
 
+                  if (entry.task == null) {
+                    return const SizedBox(
+                      height: 40,
+                    );
+                  }
+
+                  final task = entry.task!;
+
                   return Padding(
                     padding: const EdgeInsets.only(
                       left: 12,
@@ -360,23 +501,29 @@ class _TaskTimeline extends StatelessWidget {
                               .taskBottomSpacing,
                     ),
                     child: _TaskCard(
-                      task: entry.task,
+                      task: task,
                       onToggleCompleted: () {
-                        return onToggleCompleted(entry.task);
+                        return widget.onToggleCompleted(task);
                       },
                       onEdit: () {
-                        return onEdit(entry.task);
+                        return widget.onEdit(task);
                       },
                     ),
                   );
                 },
 
                 indicatorBuilder: (context, index) {
-                  final task = entries[index].task;
+                  final entry = entries[index];
+
+                  if (entry.task == null) {
+                    return const DotIndicator();
+                  }
+
+                  final task = entry.task!;
 
                   return GestureDetector(
                     onTap: () {
-                      onToggleCompleted(task);
+                      widget.onToggleCompleted(task);
                     },
                     child: DotIndicator(
                       color: task.isCompleted
@@ -396,81 +543,123 @@ class _TaskTimeline extends StatelessWidget {
       },
     );
   }
+}
 
-  List<_TimelineEntry> _buildTimelineEntries(
-    List<Task> tasks,
-  ) {
-    final entries = <_TimelineEntry>[];
+List<_TimelineEntry> _buildTimelineEntries(
+  List<Task> tasks,
+) {
+  final now = DateTime.now();
 
-    final today = _dateOnly(DateTime.now());
+  final today = DateTime(
+    now.year,
+    now.month,
+    now.day,
+  );
 
-    for (final task in tasks) {
-      final startDate = _dateOnly(task.startDate);
-      final endDate = _dateOnly(task.endDate);
+  final entries = <_TimelineEntry>[];
 
+  for (final task in tasks) {
+    entries.add(
+      _TimelineEntry(
+        task: task,
+        displayDate: _dateOnly(task.startDate),
+        isOriginalStart: true,
+      ),
+    );
+
+    // 開始日より後で、現在の日付が期間内にある場合は、
+    // 今日の位置にも表示する。
+    //
+    // 開始日が今日の場合は元の位置だけでよい。
+    if (task.startDate.isBefore(today) &&
+        !task.endDate.isBefore(today)) {
       entries.add(
         _TimelineEntry(
           task: task,
-          displayDate: startDate,
-          isOriginalStart: true,
+          displayDate: today,
+          isOriginalStart: false,
         ),
       );
-
-      final isTodayInsidePeriod =
-          startDate.isBefore(today) &&
-          !endDate.isBefore(today);
-
-      if (isTodayInsidePeriod) {
-        entries.add(
-          _TimelineEntry(
-            task: task,
-            displayDate: today,
-            isOriginalStart: false,
-          ),
-        );
-      }
     }
-
-    entries.sort((a, b) {
-      final dateCompare =
-          a.displayDate.compareTo(b.displayDate);
-
-      if (dateCompare != 0) {
-        return dateCompare;
-      }
-
-      if (a.isOriginalStart != b.isOriginalStart) {
-        return a.isOriginalStart ? -1 : 1;
-      }
-
-      final aTime = a.task.startAt;
-      final bTime = b.task.startAt;
-
-      if (aTime == null && bTime == null) {
-        return 0;
-      }
-
-      if (aTime == null) {
-        return -1;
-      }
-
-      if (bTime == null) {
-        return 1;
-      }
-
-      return aTime.compareTo(bTime);
-    });
-
-    return entries;
   }
 
-  DateTime _dateOnly(DateTime date) {
-    return DateTime(
-      date.year,
-      date.month,
-      date.day,
+  final hasTodayEntry = entries.any(
+    (entry) =>
+        entry.task != null &&
+        DateUtils.isSameDay(
+          entry.displayDate,
+          today,
+        ),
+  );
+
+  if (!hasTodayEntry) {
+    entries.add(
+      _TimelineEntry(
+        task: null,
+        displayDate: today,
+        isOriginalStart: false,
+        isTodayMarker: true,
+      ),
     );
   }
+
+  entries.sort((a, b) {
+    final dateCompare =
+        a.displayDate.compareTo(b.displayDate);
+
+    if (dateCompare != 0) {
+      return dateCompare;
+    }
+
+    if (a.isTodayMarker && !b.isTodayMarker) {
+      return -1;
+    }
+
+    if (!a.isTodayMarker && b.isTodayMarker) {
+      return 1;
+    }
+
+    if (a.isOriginalStart && !b.isOriginalStart) {
+      return -1;
+    }
+
+    if (!a.isOriginalStart && b.isOriginalStart) {
+      return 1;
+    }
+
+    final aTime = a.task?.startAt;
+    final bTime = b.task?.startAt;
+
+    if (aTime == null && bTime == null) {
+      return 0;
+    }
+
+    if (aTime == null) {
+      return -1;
+    }
+
+    if (bTime == null) {
+      return 1;
+    }
+
+    final aMinutes =
+        aTime.hour * 60 + aTime.minute;
+
+    final bMinutes =
+        bTime.hour * 60 + bTime.minute;
+
+    return aMinutes.compareTo(bMinutes);
+  });
+
+  return entries;
+}
+
+DateTime _dateOnly(DateTime date) {
+  return DateTime(
+    date.year,
+    date.month,
+    date.day,
+  );
 }
 
 class _TaskCard extends StatelessWidget {
@@ -534,70 +723,87 @@ class _DateTimeLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final task = entry.task;
+
     final date = entry.displayDate;
-    final previousDate = previousEntry?.displayDate;
 
-    final isNewDate =
-        previousDate == null ||
-        !_isSameDate(date, previousDate);
+    final isToday = DateUtils.isSameDay(
+      date,
+      DateTime.now(),
+    );
 
-    final dateText = isNewDate
-        ? _formatDate(date)
-        : null;
+    final dateText = isToday
+        ? '${date.month}/${date.day} (今日)'
+        : '${date.month}/${date.day}';
 
-    final timeText = entry.task.startAt == null
-        ? null
-        : _formatTime(entry.task.startAt!);
+    // 今日マーカーは、日付だけを表示する。
+    if (task == null) {
+      return Align(
+        alignment: Alignment.topRight,
+        child: Text(
+          dateText,
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+          ),
+          textAlign: TextAlign.right,
+        ),
+      );
+    }
+
+    final isFirstEntryOfDay =
+        previousEntry == null ||
+        !DateUtils.isSameDay(
+          previousEntry!.displayDate,
+          entry.displayDate,
+        );
+
+    // 同じ日の2件目以降で時刻がない場合、
+    // 左側には何も表示しない。
+    if (!isFirstEntryOfDay && task.startAt == null) {
+      return const SizedBox.shrink();
+    }
+
+    final startAt = task.startAt;
+    final endAt = task.endAt;
+
+    String? timeText;
+
+    if (startAt != null && endAt != null) {
+      timeText =
+          '${_formatTime(startAt)} ～ ${_formatTime(endAt)}';
+    } else if (startAt != null) {
+      timeText = _formatTime(startAt);
+    }
 
     return Align(
       alignment: Alignment.topRight,
-      child: Padding(
-        padding: const EdgeInsets.only(
-          top: 4,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            if (dateText != null)
-              Text(
-                dateText,
-                textAlign: TextAlign.right,
-                style: Theme.of(context)
-                    .textTheme
-                    .titleMedium
-                    ?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          if (isFirstEntryOfDay)
+            Text(
+              dateText,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
               ),
-            if (timeText != null) ...[
-              if (dateText != null)
-                const SizedBox(height: 2),
-              Text(
-                timeText,
-                textAlign: TextAlign.right,
+              textAlign: TextAlign.right,
+            ),
+          if (timeText != null) ...[
+            if (isFirstEntryOfDay)
+              const SizedBox(height: 2),
+            Text(
+              timeText,
+              style: const TextStyle(
+                fontSize: 12,
               ),
-            ],
+              textAlign: TextAlign.right,
+            ),
           ],
-        ),
+        ],
       ),
     );
-  }
-
-  String _formatDate(DateTime date) {
-    final now = DateTime.now();
-
-    final today = DateTime(
-      now.year,
-      now.month,
-      now.day,
-    );
-
-    if (_isSameDate(date, today)) {
-      return '${date.month}/${date.day} (今日)';
-    }
-
-    return '${date.month}/${date.day}';
   }
 
   String _formatTime(DateTime time) {
@@ -605,12 +811,6 @@ class _DateTimeLabel extends StatelessWidget {
     final minute = time.minute.toString().padLeft(2, '0');
 
     return '$hour:$minute';
-  }
-
-  bool _isSameDate(DateTime a, DateTime b) {
-    return a.year == b.year &&
-        a.month == b.month &&
-        a.day == b.day;
   }
 }
 
@@ -676,32 +876,9 @@ class _TaskContent extends StatelessWidget {
     final endDateText =
         '${endDate.month}/${endDate.day}';
 
-    final startTime = task.startAt == null
-        ? null
-        : _formatTime(task.startAt!);
-
-    final endTime = task.endAt == null
-        ? null
-        : _formatTime(task.endAt!);
-
-    if (startTime != null && endTime != null) {
-      return '$startDateText $startTime ～ '
-          '$endDateText $endTime';
-    }
-
-    if (startTime != null) {
-      return '$startDateText $startTime ～ '
-          '$endDateText';
-    }
-
+    // 時刻はタイムライン左側に表示するため、
+    // Taskカードには日付範囲だけを表示する。
     return '$startDateText ～ $endDateText';
-  }
-
-  String _formatTime(DateTime time) {
-    final hour = time.hour.toString().padLeft(2, '0');
-    final minute = time.minute.toString().padLeft(2, '0');
-
-    return '$hour:$minute';
   }
 
   bool _isSameDate(DateTime a, DateTime b) {
@@ -729,10 +906,12 @@ class _TaskEditDialog extends StatefulWidget {
   final Task task;
 
   @override
-  State<_TaskEditDialog> createState() => _TaskEditDialogState();
+  State<_TaskEditDialog> createState() =>
+      _TaskEditDialogState();
 }
 
-class _TaskEditDialogState extends State<_TaskEditDialog> {
+class _TaskEditDialogState
+    extends State<_TaskEditDialog> {
   late final TextEditingController _titleController;
   late final TextEditingController _descriptionController;
 
