@@ -1,17 +1,112 @@
-# timeline
+# タスクタイムライン
 
-A new Flutter project.
+日時を軸に予定・タスクを管理するFlutterアプリです。一般的な一覧型ではなく、予定を時系列のタイムラインとして表示します。
 
-## Getting Started
+ログインなしで利用でき、データは端末内に保存されます。現在はMVP（最小限の実用版）のUI仕上げ段階です。
 
-This project is a starting point for a Flutter application.
+## 主な機能
 
-A few resources to get you started if this is your first Flutter project:
+### タイムライン表示
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+- 日付・時刻を左、タスクカードを右に配置した縦型タイムライン
+- 今日を `9/9 (今日)` の形式で常に表示
+- 日付だけのタスク、開始時刻のみのタスク、開始・終了時刻のあるタスクに対応
+- 開始日と終了日が異なる期間タスクに対応
+- 期間中のタスクは、開始日の位置に加えて、今日が期間内なら今日の位置にも表示
+- 今日の表示順は「今日マーカー → 期間タスク → 日付のみ → 時刻順のタスク」
+- スマートフォン、タブレット、PC/Webに対応したレスポンシブ表示
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+### タスク管理
+
+- タスクの作成、編集、削除
+- 完了／未完了の切り替えと、完了済みタスクへの取り消し線表示
+- タイトルは必須・30文字以内
+- 説明は任意・100文字以内
+- 開始日・終了日は必須。初期値はどちらも今日
+- 時刻は任意で、必要な場合だけ「時間を設定」から追加
+- 終了日や終了時刻の不正な組み合わせを入力時・保存時の両方で検証
+
+### ローカル保存
+
+- タスクをHiveへ端末内保存
+- アプリを再起動してもタスクと完了状態を維持
+- Repositoryを保存処理の窓口にし、UIからDB実装へ直接依存しない構成
+- 保存直前にもバリデーションを行うため、画面を経由しない不正データの保存を防止
+
+## 使用技術
+
+| 用途 | 技術 |
+| --- | --- |
+| アプリUI | Flutter / Dart |
+| 状態管理 | Riverpod |
+| ローカルDB | Hive CE / Hive CE Flutter |
+| タイムラインUI | timelines_plus |
+| タスクID | UUID |
+| テスト | flutter_test |
+
+## 構成
+
+```text
+lib/
+├── models/       TaskモデルとHive Adapter
+├── providers/    RiverpodのTask状態管理
+├── screens/      タイムラインとタスク作成・編集画面
+└── services/     Hive初期化、Repository、入力検証
+```
+
+データの流れは次のとおりです。
+
+```text
+画面
+  ↓
+TaskNotifier（Riverpod）
+  ↓
+TaskRepository（保存前バリデーション）
+  ↓
+Hive（端末内DB）
+```
+
+## 開発環境の準備
+
+Flutter SDKをインストールしたうえで、プロジェクトのルートで実行します。
+
+```bash
+flutter pub get
+flutter run
+```
+
+静的解析とテストは次で実行できます。
+
+```bash
+dart analyze
+flutter test
+```
+
+現在のテストでは、入力バリデーション、Repository経由のHive保存、作成画面からの日付のみタスク追加を確認しています。
+
+## 今後の実装予定
+
+1. タイムラインUIと作成・編集UXの最終調整
+2. MVP全体の実機・Web動作確認
+3. ローカル通知によるリマインダー
+4. 任意のGoogleログイン
+5. Firestoreとのクラウド同期
+
+## 今後必要になる技術
+
+### リマインダー
+
+- ローカル通知用プラグイン（例：`flutter_local_notifications`）
+- iOS／Androidの通知権限処理
+- タイムゾーンの扱い
+- アプリ・端末の再起動後に通知予約を復元する処理
+
+### Googleログインとクラウド同期
+
+- Firebase Authentication と Google Sign-In
+- Cloud Firestore
+- Hiveをローカルの中心に保つオフラインファースト同期設計
+- 複数端末での更新競合と削除同期の方針
+- Firestore Security Rules、インデックス、読み書き料金の最適化
+
+クラウド同期は、ログインしなくても使える現在のローカル利用を壊さず、希望する利用者だけが有効化できる設計を目指します。
