@@ -47,5 +47,26 @@ void main() {
     final savedTask = Hive.box<Task>('tasks').values.single;
     expect(savedTask.title, 'テストタスク');
     expect(savedTask.startAt, isNull);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  });
+
+  testWidgets('タイトル未入力では作成できない', (tester) async {
+    await tester.pumpWidget(
+      const ProviderScope(child: MaterialApp(home: TimelineScreen())),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('タスクを追加'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, '追加'));
+    await tester.pump();
+
+    expect(find.text('タイトルを入力してください。'), findsOneWidget);
+    expect(Hive.box<Task>('tasks').values, isEmpty);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
   });
 }

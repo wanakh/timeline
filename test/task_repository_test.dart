@@ -55,4 +55,51 @@ void main() {
     expect(savedTask?.title, 'タスク');
     expect(savedTask?.description, '説明');
   });
+
+  test('有効な更新は保存され、不正な更新は既存データを壊さない', () async {
+    final originalTask = Task(
+      id: 'update-target',
+      title: '更新前',
+      startDate: DateTime(2026, 9, 9),
+      endDate: DateTime(2026, 9, 9),
+    );
+    await repository.add(originalTask);
+
+    final updatedTask = Task(
+      id: originalTask.id,
+      title: '更新後',
+      startDate: DateTime(2026, 9, 9),
+      endDate: DateTime(2026, 9, 10),
+    );
+    await repository.update(updatedTask);
+    expect((await repository.getById(originalTask.id))?.title, '更新後');
+
+    final invalidTask = Task(
+      id: originalTask.id,
+      title: '',
+      startDate: DateTime(2026, 9, 9),
+      endDate: DateTime(2026, 9, 10),
+    );
+    await expectLater(repository.update(invalidTask), throwsArgumentError);
+    expect((await repository.getById(originalTask.id))?.title, '更新後');
+  });
+
+  test('完了状態を切り替え、タスクを削除できる', () async {
+    final task = Task(
+      id: 'operation-target',
+      title: '操作確認',
+      startDate: DateTime(2026, 9, 9),
+      endDate: DateTime(2026, 9, 9),
+    );
+    await repository.add(task);
+
+    await repository.toggleCompleted(task.id);
+    expect((await repository.getById(task.id))?.isCompleted, isTrue);
+
+    await repository.toggleCompleted(task.id);
+    expect((await repository.getById(task.id))?.isCompleted, isFalse);
+
+    await repository.delete(task.id);
+    expect(await repository.getById(task.id), isNull);
+  });
 }
