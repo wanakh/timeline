@@ -751,10 +751,6 @@ class _TaskContent extends StatelessWidget {
       ],
     );
   }
-
-  bool _isSameDate(DateTime a, DateTime b) {
-    return a.year == b.year && a.month == b.month && a.day == b.day;
-  }
 }
 
 class _TaskDraft {

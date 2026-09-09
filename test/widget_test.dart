@@ -1,30 +1,51 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
+import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:timeline/main.dart';
+import 'package:hive_ce/hive.dart';
+import 'package:timeline/models/task.dart';
+import 'package:timeline/screens/timeline_screen.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  late Directory temporaryDirectory;
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+  setUpAll(() async {
+    temporaryDirectory = await Directory.systemTemp.createTemp(
+      'timeline_widget_test_',
+    );
+    Hive.init(temporaryDirectory.path);
+    Hive.registerAdapter(TaskAdapter());
+    await Hive.openBox<Task>('tasks');
+  });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+  setUp(() async {
+    await Hive.box<Task>('tasks').clear();
+  });
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+  tearDownAll(() async {
+    await Hive.close();
+    await temporaryDirectory.delete(recursive: true);
+  });
+
+  testWidgets('作成画面から日付のみのタスクを追加できる', (tester) async {
+    await tester.pumpWidget(
+      const ProviderScope(child: MaterialApp(home: TimelineScreen())),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('タスクを追加'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('タスクを追加'), findsOneWidget);
+    expect(find.text('時間を設定'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextFormField).first, 'テストタスク');
+    await tester.tap(find.widgetWithText(FilledButton, '追加'));
+    await tester.pumpAndSettle();
+
+    final savedTask = Hive.box<Task>('tasks').values.single;
+    expect(savedTask.title, 'テストタスク');
+    expect(savedTask.startAt, isNull);
   });
 }
