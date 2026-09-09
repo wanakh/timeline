@@ -26,7 +26,7 @@ class MyApp extends StatelessWidget {
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Task Timeline',
+      title: 'タスクタイムライン',
       // ライトモード設定
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(

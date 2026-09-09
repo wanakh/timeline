@@ -4,6 +4,7 @@ import 'package:timelines_plus/timelines_plus.dart';
 
 import '../models/task.dart';
 import '../providers/task_provider.dart';
+import '../services/task_validator.dart';
 
 class TimelineScreen extends ConsumerStatefulWidget {
   const TimelineScreen({super.key});
@@ -13,84 +14,35 @@ class TimelineScreen extends ConsumerStatefulWidget {
 }
 
 class _TimelineScreenState extends ConsumerState<TimelineScreen> {
-  int _testTaskIndex = 0;
+  Future<void> _showCreateDialog() async {
+    final draft = await showDialog<_TaskDraft>(
+      context: context,
+      builder: (context) => const _TaskCreateDialog(),
+    );
 
-  Future<void> _addTestTask() async {
-    final now = DateTime.now();
+    if (!mounted || draft == null) return;
 
-    final testTasks = [
-      _TestTaskData(
-        title: '時刻付きタスク',
-        description: '時刻表示確認用のタスクです。',
-        startDate: DateTime(
-          now.year,
-          now.month,
-          now.day,
-        ),
-        endDate: DateTime(
-          now.year,
-          now.month,
-          now.day,
-        ),
-        startAt: DateTime(
-          now.year,
-          now.month,
-          now.day,
-          9,
-          0,
-        ),
-        endAt: null,
-      ),
-      _TestTaskData(
-        title: '期間タスク',
-        description: '期間表示確認用のタスクです。',
-        startDate: DateTime(
-          now.year,
-          now.month,
-          now.day - 3,
-        ),
-        endDate: DateTime(
-          now.year,
-          now.month,
-          now.day + 1,
-        ),
-        startAt: DateTime(
-          now.year,
-          now.month,
-          now.day - 3,
-          10,
-          0,
-        ),
-        endAt: DateTime(
-          now.year,
-          now.month,
-          now.day + 1,
-          18,
-          0,
-        ),
-      ),
-    ];
-
-    final data = testTasks[_testTaskIndex % testTasks.length];
-
-    await ref.read(taskNotifierProvider.notifier).addTask(
-          title: data.title,
-          description: data.description,
-          startDate: data.startDate,
-          endDate: data.endDate,
-          startAt: data.startAt,
-          endAt: data.endAt,
-        );
-
-    setState(() {
-      _testTaskIndex++;
-    });
+    try {
+      await ref
+          .read(taskNotifierProvider.notifier)
+          .addTask(
+            title: draft.title,
+            description: draft.description,
+            startDate: draft.startDate,
+            endDate: draft.endDate,
+            startAt: draft.startAt,
+            endAt: draft.endAt,
+          );
+    } on ArgumentError catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message?.toString() ?? '入力を確認してください。')),
+      );
+    }
   }
 
   Future<void> _toggleCompleted(Task task) async {
-    await ref
-        .read(taskNotifierProvider.notifier)
-        .toggleCompleted(task.id);
+    await ref.read(taskNotifierProvider.notifier).toggleCompleted(task.id);
   }
 
   Future<void> _showEditDialog(Task task) async {
@@ -110,9 +62,7 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
       return;
     }
 
-    await ref
-        .read(taskNotifierProvider.notifier)
-        .updateTask(result.task);
+    await ref.read(taskNotifierProvider.notifier).updateTask(result.task);
   }
 
   Future<void> _deleteTask(Task task) async {
@@ -120,7 +70,7 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Taskを削除しますか？'),
+          title: const Text('タスクを削除しますか？'),
           content: Text(
             '「${task.title}」を削除します。\n'
             'この操作は元に戻せません。',
@@ -147,9 +97,7 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
       return;
     }
 
-    await ref
-        .read(taskNotifierProvider.notifier)
-        .deleteTask(task.id);
+    await ref.read(taskNotifierProvider.notifier).deleteTask(task.id);
   }
 
   @override
@@ -157,27 +105,15 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
     final taskState = ref.watch(taskNotifierProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('予定'),
-      ),
+      appBar: AppBar(title: const Text('予定')),
       body: taskState.when(
-        loading: () => const Center(
-          child: CircularProgressIndicator(),
-        ),
+        loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, stackTrace) {
-          return Center(
-            child: Text(
-              '読み込みに失敗しました\n$error',
-            ),
-          );
+          return Center(child: Text('読み込みに失敗しました\n$error'));
         },
         data: (tasks) {
           if (tasks.isEmpty) {
-            return const Center(
-              child: Text(
-                '右下の＋からテストタスクを追加してください',
-              ),
-            );
+            return const Center(child: Text('右下の＋からタスクを追加してください'));
           }
 
           return _TaskTimeline(
@@ -188,29 +124,12 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
         },
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _addTestTask,
+        onPressed: _showCreateDialog,
+        tooltip: 'タスクを追加',
         child: const Icon(Icons.add),
       ),
     );
   }
-}
-
-class _TestTaskData {
-  const _TestTaskData({
-    required this.title,
-    required this.description,
-    required this.startDate,
-    required this.endDate,
-    required this.startAt,
-    required this.endAt,
-  });
-
-  final String title;
-  final String description;
-  final DateTime startDate;
-  final DateTime endDate;
-  final DateTime? startAt;
-  final DateTime? endAt;
 }
 
 class _TimelineEntry {
@@ -251,13 +170,9 @@ class _TimelineLayoutConstants {
       return tabletDateColumnWidth;
     }
 
-    final calculatedWidth =
-        availableWidth * dateColumnRatio;
+    final calculatedWidth = availableWidth * dateColumnRatio;
 
-    return calculatedWidth.clamp(
-      minDateColumnWidth,
-      maxPhoneDateColumnWidth,
-    );
+    return calculatedWidth.clamp(minDateColumnWidth, maxPhoneDateColumnWidth);
   }
 }
 
@@ -333,32 +248,21 @@ class _TaskTimelineState extends State<_TaskTimeline> {
 
     const estimatedItemHeight = 100.0;
 
-    final targetOffset =
-        targetIndex * estimatedItemHeight;
+    final targetOffset = targetIndex * estimatedItemHeight;
 
-    final maxScrollExtent =
-        _scrollController.position.maxScrollExtent;
+    final maxScrollExtent = _scrollController.position.maxScrollExtent;
 
-    final safeOffset = targetOffset.clamp(
-      0.0,
-      maxScrollExtent,
-    );
+    final safeOffset = targetOffset.clamp(0.0, maxScrollExtent);
 
     _scrollController.jumpTo(safeOffset);
 
     _initialScrollDone = true;
   }
 
-  int _findInitialTargetIndex(
-    List<_TimelineEntry> entries,
-  ) {
+  int _findInitialTargetIndex(List<_TimelineEntry> entries) {
     final now = DateTime.now();
 
-    final today = DateTime(
-      now.year,
-      now.month,
-      now.day,
-    );
+    final today = DateTime(now.year, now.month, now.day);
 
     final todayTaskIndices = <int>[];
 
@@ -369,18 +273,13 @@ class _TaskTimelineState extends State<_TaskTimeline> {
         continue;
       }
 
-      if (DateUtils.isSameDay(
-        entry.displayDate,
-        today,
-      )) {
+      if (DateUtils.isSameDay(entry.displayDate, today)) {
         todayTaskIndices.add(i);
       }
     }
 
     if (todayTaskIndices.isEmpty) {
-      final markerIndex = entries.indexWhere(
-        (entry) => entry.isTodayMarker,
-      );
+      final markerIndex = entries.indexWhere((entry) => entry.isTodayMarker);
 
       if (markerIndex != -1) {
         return markerIndex;
@@ -422,11 +321,12 @@ class _TaskTimelineState extends State<_TaskTimeline> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final timelineWidth =
-            constraints.maxWidth.clamp(0.0, _maxTimelineWidth);
+        final timelineWidth = constraints.maxWidth.clamp(
+          0.0,
+          _maxTimelineWidth,
+        );
 
-        final dateColumnWidth =
-            _TimelineLayoutConstants.dateColumnWidth(
+        final dateColumnWidth = _TimelineLayoutConstants.dateColumnWidth(
           timelineWidth,
         );
 
@@ -437,8 +337,7 @@ class _TaskTimelineState extends State<_TaskTimeline> {
             child: Timeline.tileBuilder(
               controller: _scrollController,
               padding: const EdgeInsets.symmetric(
-                horizontal:
-                    _TimelineLayoutConstants.horizontalPadding,
+                horizontal: _TimelineLayoutConstants.horizontalPadding,
                 vertical: 24,
               ),
               builder: TimelineTileBuilder.connected(
@@ -447,15 +346,15 @@ class _TaskTimelineState extends State<_TaskTimeline> {
                 contentsAlign: ContentsAlign.basic,
 
                 nodePositionBuilder: (context, index) {
-                  final contentWidth = timelineWidth -
+                  final contentWidth =
+                      timelineWidth -
                       (_TimelineLayoutConstants.horizontalPadding * 2);
 
                   if (contentWidth <= 0) {
                     return 0.2;
                   }
 
-                  final position =
-                      dateColumnWidth / contentWidth;
+                  final position = dateColumnWidth / contentWidth;
 
                   return position.clamp(0.0, 1.0);
                 },
@@ -467,16 +366,11 @@ class _TaskTimelineState extends State<_TaskTimeline> {
                     width: dateColumnWidth,
                     child: Padding(
                       padding: const EdgeInsets.only(
-                        right:
-                            _TimelineLayoutConstants
-                                .dateToTimelineSpacing,
+                        right: _TimelineLayoutConstants.dateToTimelineSpacing,
                       ),
                       child: _DateTimeLabel(
                         entry: entry,
-                        previousEntry:
-                            index == 0
-                                ? null
-                                : entries[index - 1],
+                        previousEntry: index == 0 ? null : entries[index - 1],
                       ),
                     ),
                   );
@@ -486,9 +380,7 @@ class _TaskTimelineState extends State<_TaskTimeline> {
                   final entry = entries[index];
 
                   if (entry.task == null) {
-                    return const SizedBox(
-                      height: 40,
-                    );
+                    return const SizedBox(height: 40);
                   }
 
                   final task = entry.task!;
@@ -496,9 +388,7 @@ class _TaskTimelineState extends State<_TaskTimeline> {
                   return Padding(
                     padding: const EdgeInsets.only(
                       left: 12,
-                      bottom:
-                          _TimelineLayoutConstants
-                              .taskBottomSpacing,
+                      bottom: _TimelineLayoutConstants.taskBottomSpacing,
                     ),
                     child: _TaskCard(
                       task: task,
@@ -526,9 +416,7 @@ class _TaskTimelineState extends State<_TaskTimeline> {
                       widget.onToggleCompleted(task);
                     },
                     child: DotIndicator(
-                      color: task.isCompleted
-                          ? Colors.grey
-                          : null,
+                      color: task.isCompleted ? Colors.grey : null,
                     ),
                   );
                 },
@@ -545,16 +433,10 @@ class _TaskTimelineState extends State<_TaskTimeline> {
   }
 }
 
-List<_TimelineEntry> _buildTimelineEntries(
-  List<Task> tasks,
-) {
+List<_TimelineEntry> _buildTimelineEntries(List<Task> tasks) {
   final now = DateTime.now();
 
-  final today = DateTime(
-    now.year,
-    now.month,
-    now.day,
-  );
+  final today = DateTime(now.year, now.month, now.day);
 
   final entries = <_TimelineEntry>[];
 
@@ -571,14 +453,9 @@ List<_TimelineEntry> _buildTimelineEntries(
     // 今日の位置にも表示する。
     //
     // 開始日が今日の場合は元の位置だけでよい。
-    if (task.startDate.isBefore(today) &&
-        !task.endDate.isBefore(today)) {
+    if (task.startDate.isBefore(today) && !task.endDate.isBefore(today)) {
       entries.add(
-        _TimelineEntry(
-          task: task,
-          displayDate: today,
-          isOriginalStart: false,
-        ),
+        _TimelineEntry(task: task, displayDate: today, isOriginalStart: false),
       );
     }
   }
@@ -596,92 +473,76 @@ List<_TimelineEntry> _buildTimelineEntries(
   );
 
   entries.sort((a, b) {
-  // まず表示日で並べる。
-  final dateCompare = a.displayDate.compareTo(b.displayDate);
+    // まず表示日で並べる。
+    final dateCompare = a.displayDate.compareTo(b.displayDate);
 
-  if (dateCompare != 0) {
-    return dateCompare;
-  }
-
-  // 今日マーカーは必ずその日の先頭。
-  if (a.isTodayMarker != b.isTodayMarker) {
-    return a.isTodayMarker ? -1 : 1;
-  }
-
-  final aTask = a.task;
-  final bTask = b.task;
-
-  // 今日の位置では、
-  // 「今日を含む複数日タスク」を
-  // 今日マーカーの直後に置く。
-  final aIsTodayPeriod = aTask != null &&
-      !DateUtils.isSameDay(
-        aTask.startDate,
-        aTask.endDate,
-      ) &&
-      DateUtils.isSameDay(
-        a.displayDate,
-        DateTime.now(),
-      );
-
-  final bIsTodayPeriod = bTask != null &&
-      !DateUtils.isSameDay(
-        bTask.startDate,
-        bTask.endDate,
-      ) &&
-      DateUtils.isSameDay(
-        b.displayDate,
-        DateTime.now(),
-      );
-
-  if (aIsTodayPeriod != bIsTodayPeriod) {
-    return aIsTodayPeriod ? -1 : 1;
-  }
-
-  // 同じ日の通常タスクでは、
-  // 日付のみ → 時刻指定の順。
-  final aStartAt = aTask?.startAt;
-  final bStartAt = bTask?.startAt;
-
-  if (aStartAt == null && bStartAt != null) {
-    return -1;
-  }
-
-  if (aStartAt != null && bStartAt == null) {
-    return 1;
-  }
-
-  if (aStartAt != null && bStartAt != null) {
-    final timeCompare = aStartAt.compareTo(bStartAt);
-
-    if (timeCompare != 0) {
-      return timeCompare;
+    if (dateCompare != 0) {
+      return dateCompare;
     }
-  }
 
-  // 同条件なら開始日を基準にする。
-  if (aTask != null && bTask != null) {
-    final startCompare =
-        aTask.startDate.compareTo(bTask.startDate);
-
-    if (startCompare != 0) {
-      return startCompare;
+    // 今日マーカーは必ずその日の先頭。
+    if (a.isTodayMarker != b.isTodayMarker) {
+      return a.isTodayMarker ? -1 : 1;
     }
-  }
 
-  return 0;
-});
+    final aTask = a.task;
+    final bTask = b.task;
 
+    // 今日の位置では、
+    // 「今日を含む複数日タスク」を
+    // 今日マーカーの直後に置く。
+    final aIsTodayPeriod =
+        aTask != null &&
+        !DateUtils.isSameDay(aTask.startDate, aTask.endDate) &&
+        DateUtils.isSameDay(a.displayDate, DateTime.now());
+
+    final bIsTodayPeriod =
+        bTask != null &&
+        !DateUtils.isSameDay(bTask.startDate, bTask.endDate) &&
+        DateUtils.isSameDay(b.displayDate, DateTime.now());
+
+    if (aIsTodayPeriod != bIsTodayPeriod) {
+      return aIsTodayPeriod ? -1 : 1;
+    }
+
+    // 同じ日の通常タスクでは、
+    // 日付のみ → 時刻指定の順。
+    final aStartAt = aTask?.startAt;
+    final bStartAt = bTask?.startAt;
+
+    if (aStartAt == null && bStartAt != null) {
+      return -1;
+    }
+
+    if (aStartAt != null && bStartAt == null) {
+      return 1;
+    }
+
+    if (aStartAt != null && bStartAt != null) {
+      final timeCompare = aStartAt.compareTo(bStartAt);
+
+      if (timeCompare != 0) {
+        return timeCompare;
+      }
+    }
+
+    // 同条件なら開始日を基準にする。
+    if (aTask != null && bTask != null) {
+      final startCompare = aTask.startDate.compareTo(bTask.startDate);
+
+      if (startCompare != 0) {
+        return startCompare;
+      }
+    }
+
+    return 0;
+  });
 
   return entries;
 }
 
 DateTime _dateOnly(DateTime date) {
-  return DateTime(
-    date.year,
-    date.month,
-    date.day,
-  );
+  return DateTime(date.year, date.month, date.day);
 }
 
 class _TaskCard extends StatelessWidget {
@@ -699,10 +560,7 @@ class _TaskCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 12,
-          vertical: 10,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -718,12 +576,8 @@ class _TaskCard extends StatelessWidget {
                 onTap: onEdit,
                 borderRadius: BorderRadius.circular(8),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 2,
-                  ),
-                  child: _TaskContent(
-                    task: task,
-                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: _TaskContent(task: task),
                 ),
               ),
             ),
@@ -735,10 +589,7 @@ class _TaskCard extends StatelessWidget {
 }
 
 class _DateTimeLabel extends StatelessWidget {
-  const _DateTimeLabel({
-    required this.entry,
-    required this.previousEntry,
-  });
+  const _DateTimeLabel({required this.entry, required this.previousEntry});
 
   final _TimelineEntry entry;
   final _TimelineEntry? previousEntry;
@@ -748,10 +599,7 @@ class _DateTimeLabel extends StatelessWidget {
 
     final date = entry.displayDate;
 
-    final isToday = DateUtils.isSameDay(
-      date,
-      DateTime.now(),
-    );
+    final isToday = DateUtils.isSameDay(date, DateTime.now());
 
     final dateText = isToday
         ? '${date.month}/${date.day} (今日)'
@@ -763,10 +611,7 @@ class _DateTimeLabel extends StatelessWidget {
         alignment: Alignment.topRight,
         child: Text(
           dateText,
-          style: const TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-          ),
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
           textAlign: TextAlign.right,
         ),
       );
@@ -789,19 +634,14 @@ class _DateTimeLabel extends StatelessWidget {
           children: [
             Text(
               periodText,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-              ),
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
               textAlign: TextAlign.right,
             ),
             if (task.startAt != null) ...[
               const SizedBox(height: 2),
               Text(
                 _formatPeriodTime(task),
-                style: const TextStyle(
-                  fontSize: 12,
-                ),
+                style: const TextStyle(fontSize: 12),
                 textAlign: TextAlign.right,
               ),
             ],
@@ -813,10 +653,7 @@ class _DateTimeLabel extends StatelessWidget {
     // 1日だけのタスク。
     final isFirstEntryOfDay =
         previousEntry == null ||
-        !DateUtils.isSameDay(
-          previousEntry!.displayDate,
-          entry.displayDate,
-        );
+        !DateUtils.isSameDay(previousEntry!.displayDate, entry.displayDate);
 
     // 同じ日の2件目以降で時刻がない場合、
     // 日付も時刻も表示しない。
@@ -830,8 +667,7 @@ class _DateTimeLabel extends StatelessWidget {
     String? timeText;
 
     if (startAt != null && endAt != null) {
-      timeText =
-          '${_formatTime(startAt)} ～ ${_formatTime(endAt)}';
+      timeText = '${_formatTime(startAt)} ～ ${_formatTime(endAt)}';
     } else if (startAt != null) {
       timeText = _formatTime(startAt);
     }
@@ -844,20 +680,14 @@ class _DateTimeLabel extends StatelessWidget {
           if (isFirstEntryOfDay)
             Text(
               dateText,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-              ),
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
               textAlign: TextAlign.right,
             ),
           if (timeText != null) ...[
-            if (isFirstEntryOfDay)
-              const SizedBox(height: 2),
+            if (isFirstEntryOfDay) const SizedBox(height: 2),
             Text(
               timeText,
-              style: const TextStyle(
-                fontSize: 12,
-              ),
+              style: const TextStyle(fontSize: 12),
               textAlign: TextAlign.right,
             ),
           ],
@@ -893,17 +723,12 @@ class _DateTimeLabel extends StatelessWidget {
   }
 
   bool _isSameDate(DateTime a, DateTime b) {
-    return a.year == b.year &&
-        a.month == b.month &&
-        a.day == b.day;
+    return a.year == b.year && a.month == b.month && a.day == b.day;
   }
-
 }
 
 class _TaskContent extends StatelessWidget {
-  const _TaskContent({
-    required this.task,
-  });
+  const _TaskContent({required this.task});
 
   final Task task;
 
@@ -917,57 +742,329 @@ class _TaskContent extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          task.title,
-          style: TextStyle(
-            decoration: textDecoration,
-          ),
-        ),
+        Text(task.title, style: TextStyle(decoration: textDecoration)),
         if (task.description != null &&
             task.description!.trim().isNotEmpty) ...[
           const SizedBox(height: 4),
-          Text(
-            task.description!,
-            style: TextStyle(
-              decoration: textDecoration,
-            ),
-          ),
+          Text(task.description!, style: TextStyle(decoration: textDecoration)),
         ],
       ],
     );
   }
 
   bool _isSameDate(DateTime a, DateTime b) {
-    return a.year == b.year &&
-        a.month == b.month &&
-        a.day == b.day;
+    return a.year == b.year && a.month == b.month && a.day == b.day;
   }
 }
 
-class _EditDialogResult {
-  const _EditDialogResult({
-    required this.task,
-    required this.delete,
+class _TaskDraft {
+  const _TaskDraft({
+    required this.title,
+    required this.description,
+    required this.startDate,
+    required this.endDate,
+    required this.startAt,
+    required this.endAt,
   });
+
+  final String title;
+  final String? description;
+  final DateTime startDate;
+  final DateTime endDate;
+  final DateTime? startAt;
+  final DateTime? endAt;
+}
+
+class _TaskCreateDialog extends StatefulWidget {
+  const _TaskCreateDialog();
+
+  @override
+  State<_TaskCreateDialog> createState() => _TaskCreateDialogState();
+}
+
+class _TaskCreateDialogState extends State<_TaskCreateDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _titleController = TextEditingController();
+  final _descriptionController = TextEditingController();
+
+  late DateTime _startDate;
+  late DateTime _endDate;
+  DateTime? _startAt;
+  DateTime? _endAt;
+  String? _dateTimeError;
+
+  @override
+  void initState() {
+    super.initState();
+    final now = DateTime.now();
+    _startDate = DateTime(now.year, now.month, now.day);
+    _endDate = _startDate;
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _selectStartDate() async {
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: _startDate,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (selected == null) return;
+
+    setState(() {
+      _startDate = _dateOnly(selected);
+      if (_endDate.isBefore(_startDate)) _endDate = _startDate;
+      _startAt = _withDate(_startDate, _startAt);
+      _endAt = _withDate(_endDate, _endAt);
+      _validateDateAndTime();
+    });
+  }
+
+  Future<void> _selectEndDate() async {
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: _endDate,
+      firstDate: _startDate,
+      lastDate: DateTime(2100),
+    );
+    if (selected == null) return;
+
+    setState(() {
+      _endDate = _dateOnly(selected);
+      _endAt = _withDate(_endDate, _endAt);
+      _validateDateAndTime();
+    });
+  }
+
+  Future<void> _selectStartTime() async {
+    final selected = await showTimePicker(
+      context: context,
+      initialTime: _startAt == null
+          ? TimeOfDay.now()
+          : TimeOfDay.fromDateTime(_startAt!),
+    );
+    if (selected == null) return;
+
+    setState(() {
+      _startAt = DateTime(
+        _startDate.year,
+        _startDate.month,
+        _startDate.day,
+        selected.hour,
+        selected.minute,
+      );
+      _validateDateAndTime();
+    });
+  }
+
+  Future<void> _selectEndTime() async {
+    final selected = await showTimePicker(
+      context: context,
+      initialTime: _endAt == null
+          ? TimeOfDay.now()
+          : TimeOfDay.fromDateTime(_endAt!),
+    );
+    if (selected == null) return;
+
+    setState(() {
+      _endAt = DateTime(
+        _endDate.year,
+        _endDate.month,
+        _endDate.day,
+        selected.hour,
+        selected.minute,
+      );
+      _validateDateAndTime();
+    });
+  }
+
+  void _validateDateAndTime() {
+    _dateTimeError = TaskValidator.validate(
+      title: 'valid title',
+      startDate: _startDate,
+      endDate: _endDate,
+      startAt: _startAt,
+      endAt: _endAt,
+    );
+  }
+
+  void _save() {
+    _validateDateAndTime();
+    final formIsValid = _formKey.currentState!.validate();
+    if (!formIsValid || _dateTimeError != null) {
+      setState(() {});
+      return;
+    }
+
+    Navigator.of(context).pop(
+      _TaskDraft(
+        title: _titleController.text.trim(),
+        description: _descriptionController.text.trim().isEmpty
+            ? null
+            : _descriptionController.text.trim(),
+        startDate: _startDate,
+        endDate: _endDate,
+        startAt: _startAt,
+        endAt: _endAt,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasTime = _startAt != null;
+
+    return AlertDialog(
+      title: const Text('タスクを追加'),
+      content: SingleChildScrollView(
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextFormField(
+                controller: _titleController,
+                autofocus: true,
+                maxLength: TaskValidator.maxTitleLength,
+                autovalidateMode: AutovalidateMode.onUserInteraction,
+                decoration: const InputDecoration(
+                  labelText: 'タイトル',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) => TaskValidator.validate(
+                  title: value ?? '',
+                  startDate: _startDate,
+                  endDate: _endDate,
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _descriptionController,
+                maxLines: 5,
+                maxLength: TaskValidator.maxDescriptionLength,
+                autovalidateMode: AutovalidateMode.onUserInteraction,
+                decoration: const InputDecoration(
+                  labelText: '説明（任意・100字以内）',
+                  border: OutlineInputBorder(),
+                  alignLabelWithHint: true,
+                ),
+                validator: (value) => TaskValidator.validate(
+                  title: 'valid title',
+                  description: value,
+                  startDate: _startDate,
+                  endDate: _endDate,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                '日付',
+                style: Theme.of(context).textTheme.titleSmall
+                    ?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              _DateEditButton(
+                label: '開始日',
+                date: _startDate,
+                onPressed: _selectStartDate,
+              ),
+              const SizedBox(height: 8),
+              _DateEditButton(
+                label: '終了日',
+                date: _endDate,
+                onPressed: _selectEndDate,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                '時刻',
+                style: Theme.of(context).textTheme.titleSmall
+                    ?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              if (!hasTime)
+                OutlinedButton.icon(
+                  onPressed: _selectStartTime,
+                  icon: const Icon(Icons.access_time),
+                  label: const Text('時間を設定'),
+                )
+              else ...[
+                _TimeEditButton(
+                  label: '開始時刻',
+                  time: _startAt,
+                  onPressed: _selectStartTime,
+                ),
+                const SizedBox(height: 8),
+                _TimeEditButton(
+                  label: '終了時刻',
+                  time: _endAt,
+                  onPressed: _selectEndTime,
+                  clearEnabled: _endAt != null,
+                  onClear: () => setState(() {
+                    _endAt = null;
+                    _validateDateAndTime();
+                  }),
+                ),
+                TextButton(
+                  onPressed: () => setState(() {
+                    _startAt = null;
+                    _endAt = null;
+                    _validateDateAndTime();
+                  }),
+                  child: const Text('時刻を削除して日付のみの予定にする'),
+                ),
+              ],
+              if (_dateTimeError != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  _dateTimeError!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('キャンセル'),
+        ),
+        FilledButton(onPressed: _save, child: const Text('追加')),
+      ],
+    );
+  }
+
+  DateTime _dateOnly(DateTime value) =>
+      DateTime(value.year, value.month, value.day);
+
+  DateTime? _withDate(DateTime date, DateTime? time) => time == null
+      ? null
+      : DateTime(date.year, date.month, date.day, time.hour, time.minute);
+}
+
+class _EditDialogResult {
+  const _EditDialogResult({required this.task, required this.delete});
 
   final Task task;
   final bool delete;
 }
 
 class _TaskEditDialog extends StatefulWidget {
-  const _TaskEditDialog({
-    required this.task,
-  });
+  const _TaskEditDialog({required this.task});
 
   final Task task;
 
   @override
-  State<_TaskEditDialog> createState() =>
-      _TaskEditDialogState();
+  State<_TaskEditDialog> createState() => _TaskEditDialogState();
 }
 
-class _TaskEditDialogState
-    extends State<_TaskEditDialog> {
+class _TaskEditDialogState extends State<_TaskEditDialog> {
   late final TextEditingController _titleController;
   late final TextEditingController _descriptionController;
 
@@ -985,9 +1082,7 @@ class _TaskEditDialogState
 
     final task = widget.task;
 
-    _titleController = TextEditingController(
-      text: task.title,
-    );
+    _titleController = TextEditingController(text: task.title);
 
     _descriptionController = TextEditingController(
       text: task.description ?? '',
@@ -1033,9 +1128,7 @@ class _TaskEditDialogState
   Future<void> _selectEndDate() async {
     final selected = await showDatePicker(
       context: context,
-      initialDate: _endDate.isBefore(_startDate)
-          ? _startDate
-          : _endDate,
+      initialDate: _endDate.isBefore(_startDate) ? _startDate : _endDate,
       firstDate: _startDate,
       lastDate: DateTime(2100),
     );
@@ -1121,29 +1214,19 @@ class _TaskEditDialogState
 
   void _save() {
     final title = _titleController.text.trim();
+    final description = _descriptionController.text.trim();
+    final validationMessage = TaskValidator.validate(
+      title: title,
+      description: description,
+      startDate: _startDate,
+      endDate: _endDate,
+      startAt: _startAt,
+      endAt: _endAt,
+    );
 
-    if (title.isEmpty) {
+    if (validationMessage != null) {
       setState(() {
-        _validationMessage = 'タイトルを入力してください。';
-      });
-      return;
-    }
-
-    if (_endDate.isBefore(_startDate)) {
-      setState(() {
-        _validationMessage =
-            '終了日は開始日より前にできません。';
-      });
-      return;
-    }
-
-    if (_startAt != null &&
-        _endAt != null &&
-        _endDate == _startDate &&
-        _endAt!.isBefore(_startAt!)) {
-      setState(() {
-        _validationMessage =
-            '終了時刻は開始時刻より前にできません。';
+        _validationMessage = validationMessage;
       });
       return;
     }
@@ -1151,10 +1234,7 @@ class _TaskEditDialogState
     final updatedTask = Task(
       id: widget.task.id,
       title: title,
-      description:
-          _descriptionController.text.trim().isEmpty
-              ? null
-              : _descriptionController.text.trim(),
+      description: description.isEmpty ? null : description,
       startDate: _startDate,
       endDate: _endDate,
       startAt: _startAt,
@@ -1162,21 +1242,13 @@ class _TaskEditDialogState
       isCompleted: widget.task.isCompleted,
     );
 
-    Navigator.of(context).pop(
-      _EditDialogResult(
-        task: updatedTask,
-        delete: false,
-      ),
-    );
+    Navigator.of(context)
+        .pop(_EditDialogResult(task: updatedTask, delete: false));
   }
 
   void _delete() {
-    Navigator.of(context).pop(
-      _EditDialogResult(
-        task: widget.task,
-        delete: true,
-      ),
-    );
+    Navigator.of(context)
+        .pop(_EditDialogResult(task: widget.task, delete: true));
   }
 
   @override
@@ -1184,7 +1256,7 @@ class _TaskEditDialogState
     final hasTime = _startAt != null;
 
     return AlertDialog(
-      title: const Text('Taskを編集'),
+      title: const Text('タスクを編集'),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1193,6 +1265,7 @@ class _TaskEditDialogState
             TextField(
               controller: _titleController,
               autofocus: true,
+              maxLength: TaskValidator.maxTitleLength,
               decoration: const InputDecoration(
                 labelText: 'タイトル',
                 border: OutlineInputBorder(),
@@ -1202,8 +1275,9 @@ class _TaskEditDialogState
             TextField(
               controller: _descriptionController,
               maxLines: 5,
+              maxLength: TaskValidator.maxDescriptionLength,
               decoration: const InputDecoration(
-                labelText: 'Description',
+                labelText: '説明（任意・100字以内）',
                 border: OutlineInputBorder(),
                 alignLabelWithHint: true,
               ),
@@ -1211,12 +1285,8 @@ class _TaskEditDialogState
             const SizedBox(height: 20),
             Text(
               '日付',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleSmall
-                  ?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+              style: Theme.of(context).textTheme.titleSmall
+                  ?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             _DateEditButton(
@@ -1233,12 +1303,8 @@ class _TaskEditDialogState
             const SizedBox(height: 20),
             Text(
               '時刻',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleSmall
-                  ?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+              style: Theme.of(context).textTheme.titleSmall
+                  ?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             if (!hasTime)
@@ -1264,50 +1330,34 @@ class _TaskEditDialogState
               const SizedBox(height: 4),
               TextButton(
                 onPressed: _clearStartTime,
-                child: const Text(
-                  '時刻を削除して日付のみの予定にする',
-                ),
+                child: const Text('時刻を削除して日付のみの予定にする'),
               ),
             ],
             if (_validationMessage != null) ...[
               const SizedBox(height: 12),
               Text(
                 _validationMessage!,
-                style: TextStyle(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .error,
-                ),
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
             ],
           ],
         ),
       ),
       actions: [
-        TextButton(
-          onPressed: _delete,
-          child: const Text('削除'),
-        ),
+        TextButton(onPressed: _delete, child: const Text('削除')),
         TextButton(
           onPressed: () {
             Navigator.of(context).pop();
           },
           child: const Text('キャンセル'),
         ),
-        FilledButton(
-          onPressed: _save,
-          child: const Text('保存'),
-        ),
+        FilledButton(onPressed: _save, child: const Text('保存')),
       ],
     );
   }
 
   DateTime _dateOnly(DateTime date) {
-    return DateTime(
-      date.year,
-      date.month,
-      date.day,
-    );
+    return DateTime(date.year, date.month, date.day);
   }
 }
 
@@ -1327,15 +1377,10 @@ class _DateEditButton extends StatelessWidget {
     return OutlinedButton(
       onPressed: onPressed,
       style: OutlinedButton.styleFrom(
-        minimumSize: const Size(
-          double.infinity,
-          48,
-        ),
+        minimumSize: const Size(double.infinity, 48),
         alignment: Alignment.centerLeft,
       ),
-      child: Text(
-        '$label  ${_formatDate(date)}',
-      ),
+      child: Text('$label  ${_formatDate(date)}'),
     );
   }
 
@@ -1367,16 +1412,11 @@ class _TimeEditButton extends StatelessWidget {
           child: OutlinedButton(
             onPressed: onPressed,
             style: OutlinedButton.styleFrom(
-              minimumSize: const Size(
-                0,
-                48,
-              ),
+              minimumSize: const Size(0, 48),
               alignment: Alignment.centerLeft,
             ),
             child: Text(
-              time == null
-                  ? '$label  未設定'
-                  : '$label  ${_formatTime(time!)}',
+              time == null ? '$label  未設定' : '$label  ${_formatTime(time!)}',
             ),
           ),
         ),

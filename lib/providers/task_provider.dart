@@ -3,13 +3,15 @@ import 'package:uuid/uuid.dart';
 
 import '../models/task.dart';
 import '../services/task_repository.dart';
+import '../services/task_validator.dart';
 
 final taskRepositoryProvider = Provider<TaskRepository>((ref) {
   return TaskRepository();
 });
 
-final taskNotifierProvider =
-    AsyncNotifierProvider<TaskNotifier, List<Task>>(TaskNotifier.new);
+final taskNotifierProvider = AsyncNotifierProvider<TaskNotifier, List<Task>>(
+  TaskNotifier.new,
+);
 
 class TaskNotifier extends AsyncNotifier<List<Task>> {
   late final TaskRepository _repository;
@@ -39,6 +41,7 @@ class TaskNotifier extends AsyncNotifier<List<Task>> {
       endAt: endAt,
     );
 
+    TaskValidator.validateOrThrow(task);
     await _repository.add(task);
     await _reload();
   }
@@ -64,8 +67,6 @@ class TaskNotifier extends AsyncNotifier<List<Task>> {
   Future<void> _reload() async {
     state = const AsyncLoading();
 
-    state = await AsyncValue.guard(
-      () => _repository.getAll(),
-    );
+    state = await AsyncValue.guard(() => _repository.getAll());
   }
 }

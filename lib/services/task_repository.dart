@@ -1,6 +1,7 @@
 import 'package:hive_ce/hive.dart';
 
 import '../models/task.dart';
+import 'task_validator.dart';
 
 class TaskRepository {
   static const String boxName = 'tasks';
@@ -27,12 +28,14 @@ class TaskRepository {
 
   /// Taskを追加
   Future<void> add(Task task) async {
+    TaskValidator.validateOrThrow(task);
     final box = await _openBox();
     await box.put(task.id, task);
   }
 
   /// Taskを更新
   Future<void> update(Task task) async {
+    TaskValidator.validateOrThrow(task);
     final box = await _openBox();
     await box.put(task.id, task);
   }
