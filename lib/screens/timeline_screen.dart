@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:timelines_plus/timelines_plus.dart';
 
 import '../models/task.dart';
 import '../providers/task_provider.dart';
@@ -232,9 +232,6 @@ class _TaskTimelineState extends State<_TaskTimeline> {
     }
 
     if (!_scrollController.hasClients) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _scrollToInitialPosition();
-      });
       return;
     }
 
@@ -334,101 +331,114 @@ class _TaskTimelineState extends State<_TaskTimeline> {
           alignment: Alignment.topLeft,
           child: SizedBox(
             width: timelineWidth,
-            child: Timeline.tileBuilder(
+            child: ListView.builder(
               controller: _scrollController,
               padding: const EdgeInsets.symmetric(
                 horizontal: _TimelineLayoutConstants.horizontalPadding,
                 vertical: 24,
               ),
-              builder: TimelineTileBuilder.connected(
-                itemCount: entries.length,
-                connectionDirection: ConnectionDirection.after,
-                contentsAlign: ContentsAlign.basic,
+              itemCount: entries.length,
+              itemBuilder: (context, index) => _TimelineListItem(
+                entry: entries[index],
+                previousEntry: index == 0 ? null : entries[index - 1],
+                dateColumnWidth: dateColumnWidth,
+                onToggleCompleted: widget.onToggleCompleted,
+                onEdit: widget.onEdit,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
 
-                nodePositionBuilder: (context, index) {
-                  final contentWidth =
-                      timelineWidth -
-                      (_TimelineLayoutConstants.horizontalPadding * 2);
+class _TimelineListItem extends StatelessWidget {
+  const _TimelineListItem({
+    required this.entry,
+    required this.previousEntry,
+    required this.dateColumnWidth,
+    required this.onToggleCompleted,
+    required this.onEdit,
+  });
 
-                  if (contentWidth <= 0) {
-                    return 0.2;
-                  }
+  static const double _nodeColumnWidth = 24;
 
-                  final position = dateColumnWidth / contentWidth;
+  final _TimelineEntry entry;
+  final _TimelineEntry? previousEntry;
+  final double dateColumnWidth;
+  final Future<void> Function(Task task) onToggleCompleted;
+  final Future<void> Function(Task task) onEdit;
 
-                  return position.clamp(0.0, 1.0);
-                },
+  @override
+  Widget build(BuildContext context) {
+    final task = entry.task;
+    final colorScheme = Theme.of(context).colorScheme;
 
-                oppositeContentsBuilder: (context, index) {
-                  final entry = entries[index];
-
-                  return SizedBox(
-                    width: dateColumnWidth,
-                    child: Padding(
-                      padding: const EdgeInsets.only(
-                        right: _TimelineLayoutConstants.dateToTimelineSpacing,
-                      ),
-                      child: _DateTimeLabel(
-                        entry: entry,
-                        previousEntry: index == 0 ? null : entries[index - 1],
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            width: dateColumnWidth,
+            child: Padding(
+              padding: const EdgeInsets.only(
+                right: _TimelineLayoutConstants.dateToTimelineSpacing,
+              ),
+              child: _DateTimeLabel(entry: entry, previousEntry: previousEntry),
+            ),
+          ),
+          SizedBox(
+            width: _nodeColumnWidth,
+            child: Stack(
+              children: [
+                Positioned(
+                  top: 0,
+                  bottom: 0,
+                  left: (_nodeColumnWidth - 2) / 2,
+                  child: Container(width: 2, color: colorScheme.outlineVariant),
+                ),
+                Align(
+                  alignment: Alignment.topCenter,
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: GestureDetector(
+                      onTap: task == null
+                          ? null
+                          : () => onToggleCompleted(task),
+                      child: Container(
+                        width: 12,
+                        height: 12,
+                        decoration: BoxDecoration(
+                          color: task?.isCompleted == true
+                              ? Colors.grey
+                              : colorScheme.primary,
+                          shape: BoxShape.circle,
+                        ),
                       ),
                     ),
-                  );
-                },
-
-                contentsBuilder: (context, index) {
-                  final entry = entries[index];
-
-                  if (entry.task == null) {
-                    return const SizedBox(height: 40);
-                  }
-
-                  final task = entry.task!;
-
-                  return Padding(
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: task == null
+                ? const SizedBox(height: 40)
+                : Padding(
                     padding: const EdgeInsets.only(
                       left: 12,
                       bottom: _TimelineLayoutConstants.taskBottomSpacing,
                     ),
                     child: _TaskCard(
                       task: task,
-                      onToggleCompleted: () {
-                        return widget.onToggleCompleted(task);
-                      },
-                      onEdit: () {
-                        return widget.onEdit(task);
-                      },
+                      onToggleCompleted: () => onToggleCompleted(task),
+                      onEdit: () => onEdit(task),
                     ),
-                  );
-                },
-
-                indicatorBuilder: (context, index) {
-                  final entry = entries[index];
-
-                  if (entry.task == null) {
-                    return const DotIndicator();
-                  }
-
-                  final task = entry.task!;
-
-                  return GestureDetector(
-                    onTap: () {
-                      widget.onToggleCompleted(task);
-                    },
-                    child: DotIndicator(
-                      color: task.isCompleted ? Colors.grey : null,
-                    ),
-                  );
-                },
-
-                connectorBuilder: (context, index, type) {
-                  return const SolidLineConnector();
-                },
-              ),
-            ),
+                  ),
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 }
@@ -561,27 +571,31 @@ class _TaskCard extends StatelessWidget {
     return Card(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Checkbox(
-              value: task.isCompleted,
-              onChanged: (_) {
-                onToggleCompleted();
-              },
-            ),
-            const SizedBox(width: 4),
-            Expanded(
-              child: InkWell(
-                onTap: onEdit,
-                borderRadius: BorderRadius.circular(8),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 2),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 48),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(left: 52, top: 6, bottom: 6),
+                child: InkWell(
+                  onTap: onEdit,
+                  borderRadius: BorderRadius.circular(8),
                   child: _TaskContent(task: task),
                 ),
               ),
-            ),
-          ],
+              Positioned(
+                top: 0,
+                left: 0,
+                child: Checkbox(
+                  value: task.isCompleted,
+                  onChanged: (_) {
+                    onToggleCompleted();
+                  },
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -929,6 +943,7 @@ class _TaskCreateDialogState extends State<_TaskCreateDialog> {
                 controller: _titleController,
                 autofocus: true,
                 maxLength: TaskValidator.maxTitleLength,
+                maxLengthEnforcement: MaxLengthEnforcement.none,
                 autovalidateMode: AutovalidateMode.onUserInteraction,
                 decoration: const InputDecoration(
                   labelText: 'タイトル',
@@ -945,6 +960,7 @@ class _TaskCreateDialogState extends State<_TaskCreateDialog> {
                 controller: _descriptionController,
                 maxLines: 5,
                 maxLength: TaskValidator.maxDescriptionLength,
+                maxLengthEnforcement: MaxLengthEnforcement.none,
                 autovalidateMode: AutovalidateMode.onUserInteraction,
                 decoration: const InputDecoration(
                   labelText: '説明（任意・100字以内）',
@@ -1262,6 +1278,7 @@ class _TaskEditDialogState extends State<_TaskEditDialog> {
               controller: _titleController,
               autofocus: true,
               maxLength: TaskValidator.maxTitleLength,
+              maxLengthEnforcement: MaxLengthEnforcement.none,
               decoration: const InputDecoration(
                 labelText: 'タイトル',
                 border: OutlineInputBorder(),
@@ -1272,6 +1289,7 @@ class _TaskEditDialogState extends State<_TaskEditDialog> {
               controller: _descriptionController,
               maxLines: 5,
               maxLength: TaskValidator.maxDescriptionLength,
+              maxLengthEnforcement: MaxLengthEnforcement.none,
               decoration: const InputDecoration(
                 labelText: '説明（任意・100字以内）',
                 border: OutlineInputBorder(),
