@@ -20,23 +20,31 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
       builder: (context) => const _TaskCreateDialog(),
     );
 
-    if (!mounted || draft == null) return;
+    if (!mounted || draft == null) {
+      return;
+    }
 
     try {
-      await ref
-          .read(taskNotifierProvider.notifier)
-          .addTask(
+      await ref.read(taskNotifierProvider.notifier).addTask(
             title: draft.title,
             description: draft.description,
             startDate: draft.startDate,
             endDate: draft.endDate,
             startAt: draft.startAt,
             endAt: draft.endAt,
+            reminderAt: draft.reminderAt,
           );
     } on ArgumentError catch (error) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.message?.toString() ?? '入力を確認してください。')),
+        SnackBar(
+          content: Text(
+            error.message?.toString() ?? '入力を確認してください。',
+          ),
+        ),
       );
     }
   }
@@ -48,9 +56,7 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
   Future<void> _showEditDialog(Task task) async {
     final result = await showDialog<_EditDialogResult>(
       context: context,
-      builder: (context) {
-        return _TaskEditDialog(task: task);
-      },
+      builder: (context) => _TaskEditDialog(task: task),
     );
 
     if (!mounted || result == null) {
@@ -77,15 +83,11 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.of(context).pop(false);
-              },
+              onPressed: () => Navigator.of(context).pop(false),
               child: const Text('キャンセル'),
             ),
             FilledButton(
-              onPressed: () {
-                Navigator.of(context).pop(true);
-              },
+              onPressed: () => Navigator.of(context).pop(true),
               child: const Text('削除'),
             ),
           ],
@@ -105,15 +107,23 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
     final taskState = ref.watch(taskNotifierProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('予定')),
+      appBar: AppBar(
+        title: const Text('予定'),
+      ),
       body: taskState.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const Center(
+          child: CircularProgressIndicator(),
+        ),
         error: (error, stackTrace) {
-          return Center(child: Text('読み込みに失敗しました\n$error'));
+          return Center(
+            child: Text('読み込みに失敗しました\n$error'),
+          );
         },
         data: (tasks) {
           if (tasks.isEmpty) {
-            return const Center(child: Text('右下の＋からタスクを追加してください'));
+            return const Center(
+              child: Text('右下の＋からタスクを追加してください'),
+            );
           }
 
           return _TaskTimeline(
@@ -150,19 +160,12 @@ class _TimelineLayoutConstants {
   const _TimelineLayoutConstants._();
 
   static const double tabletBreakpoint = 600;
-
   static const double dateColumnRatio = 0.28;
-
   static const double minDateColumnWidth = 100;
-
   static const double maxPhoneDateColumnWidth = 125;
-
   static const double tabletDateColumnWidth = 140;
-
   static const double horizontalPadding = 16;
-
   static const double dateToTimelineSpacing = 12;
-
   static const double taskBottomSpacing = 16;
 
   static double dateColumnWidth(double availableWidth) {
@@ -172,7 +175,10 @@ class _TimelineLayoutConstants {
 
     final calculatedWidth = availableWidth * dateColumnRatio;
 
-    return calculatedWidth.clamp(minDateColumnWidth, maxPhoneDateColumnWidth);
+    return calculatedWidth.clamp(
+      minDateColumnWidth,
+      maxPhoneDateColumnWidth,
+    );
   }
 }
 
@@ -249,7 +255,10 @@ class _TaskTimelineState extends State<_TaskTimeline> {
 
     final maxScrollExtent = _scrollController.position.maxScrollExtent;
 
-    final safeOffset = targetOffset.clamp(0.0, maxScrollExtent);
+    final safeOffset = targetOffset.clamp(
+      0.0,
+      maxScrollExtent,
+    );
 
     _scrollController.jumpTo(safeOffset);
 
@@ -259,7 +268,11 @@ class _TaskTimelineState extends State<_TaskTimeline> {
   int _findInitialTargetIndex(List<_TimelineEntry> entries) {
     final now = DateTime.now();
 
-    final today = DateTime(now.year, now.month, now.day);
+    final today = DateTime(
+      now.year,
+      now.month,
+      now.day,
+    );
 
     final todayTaskIndices = <int>[];
 
@@ -276,7 +289,9 @@ class _TaskTimelineState extends State<_TaskTimeline> {
     }
 
     if (todayTaskIndices.isEmpty) {
-      final markerIndex = entries.indexWhere((entry) => entry.isTodayMarker);
+      final markerIndex = entries.indexWhere(
+        (entry) => entry.isTodayMarker,
+      );
 
       if (markerIndex != -1) {
         return markerIndex;
@@ -301,7 +316,6 @@ class _TaskTimelineState extends State<_TaskTimeline> {
 
     for (final index in timedTodayIndices) {
       final task = entries[index].task!;
-
       final startAt = task.startAt!;
 
       if (!startAt.isBefore(now)) {
@@ -323,7 +337,8 @@ class _TaskTimelineState extends State<_TaskTimeline> {
           _maxTimelineWidth,
         );
 
-        final dateColumnWidth = _TimelineLayoutConstants.dateColumnWidth(
+        final dateColumnWidth =
+            _TimelineLayoutConstants.dateColumnWidth(
           timelineWidth,
         );
 
@@ -338,13 +353,16 @@ class _TaskTimelineState extends State<_TaskTimeline> {
                 vertical: 24,
               ),
               itemCount: entries.length,
-              itemBuilder: (context, index) => _TimelineListItem(
-                entry: entries[index],
-                previousEntry: index == 0 ? null : entries[index - 1],
-                dateColumnWidth: dateColumnWidth,
-                onToggleCompleted: widget.onToggleCompleted,
-                onEdit: widget.onEdit,
-              ),
+              itemBuilder: (context, index) {
+                return _TimelineListItem(
+                  entry: entries[index],
+                  previousEntry:
+                      index == 0 ? null : entries[index - 1],
+                  dateColumnWidth: dateColumnWidth,
+                  onToggleCompleted: widget.onToggleCompleted,
+                  onEdit: widget.onEdit,
+                );
+              },
             ),
           ),
         );
@@ -385,7 +403,10 @@ class _TimelineListItem extends StatelessWidget {
               padding: const EdgeInsets.only(
                 right: _TimelineLayoutConstants.dateToTimelineSpacing,
               ),
-              child: _DateTimeLabel(entry: entry, previousEntry: previousEntry),
+              child: _DateTimeLabel(
+                entry: entry,
+                previousEntry: previousEntry,
+              ),
             ),
           ),
           SizedBox(
@@ -396,7 +417,10 @@ class _TimelineListItem extends StatelessWidget {
                   top: 0,
                   bottom: 0,
                   left: (_nodeColumnWidth - 2) / 2,
-                  child: Container(width: 2, color: colorScheme.outlineVariant),
+                  child: Container(
+                    width: 2,
+                    color: colorScheme.outlineVariant,
+                  ),
                 ),
                 Align(
                   alignment: Alignment.topCenter,
@@ -428,11 +452,13 @@ class _TimelineListItem extends StatelessWidget {
                 : Padding(
                     padding: const EdgeInsets.only(
                       left: 12,
-                      bottom: _TimelineLayoutConstants.taskBottomSpacing,
+                      bottom:
+                          _TimelineLayoutConstants.taskBottomSpacing,
                     ),
                     child: _TaskCard(
                       task: task,
-                      onToggleCompleted: () => onToggleCompleted(task),
+                      onToggleCompleted: () =>
+                          onToggleCompleted(task),
                       onEdit: () => onEdit(task),
                     ),
                   ),
@@ -446,7 +472,11 @@ class _TimelineListItem extends StatelessWidget {
 List<_TimelineEntry> _buildTimelineEntries(List<Task> tasks) {
   final now = DateTime.now();
 
-  final today = DateTime(now.year, now.month, now.day);
+  final today = DateTime(
+    now.year,
+    now.month,
+    now.day,
+  );
 
   final entries = <_TimelineEntry>[];
 
@@ -459,20 +489,18 @@ List<_TimelineEntry> _buildTimelineEntries(List<Task> tasks) {
       ),
     );
 
-    // 開始日より後で、現在の日付が期間内にある場合は、
-    // 今日の位置にも表示する。
-    //
-    // 開始日が今日の場合は元の位置だけでよい。
-    if (task.startDate.isBefore(today) && !task.endDate.isBefore(today)) {
+    if (task.startDate.isBefore(today) &&
+        !task.endDate.isBefore(today)) {
       entries.add(
-        _TimelineEntry(task: task, displayDate: today, isOriginalStart: false),
+        _TimelineEntry(
+          task: task,
+          displayDate: today,
+          isOriginalStart: false,
+        ),
       );
     }
   }
-  // 「今日」の表示は必ず追加する。
-  // 今日のタスクが存在する場合でも、
-  // 今日を含む複数日タスクが存在する場合でも、
-  // 「今日」を示すマーカーは必要。
+
   entries.add(
     _TimelineEntry(
       task: null,
@@ -483,14 +511,12 @@ List<_TimelineEntry> _buildTimelineEntries(List<Task> tasks) {
   );
 
   entries.sort((a, b) {
-    // まず表示日で並べる。
     final dateCompare = a.displayDate.compareTo(b.displayDate);
 
     if (dateCompare != 0) {
       return dateCompare;
     }
 
-    // 今日マーカーは必ずその日の先頭。
     if (a.isTodayMarker != b.isTodayMarker) {
       return a.isTodayMarker ? -1 : 1;
     }
@@ -498,25 +524,32 @@ List<_TimelineEntry> _buildTimelineEntries(List<Task> tasks) {
     final aTask = a.task;
     final bTask = b.task;
 
-    // 今日の位置では、
-    // 「今日を含む複数日タスク」を
-    // 今日マーカーの直後に置く。
     final aIsTodayPeriod =
         aTask != null &&
-        !DateUtils.isSameDay(aTask.startDate, aTask.endDate) &&
-        DateUtils.isSameDay(a.displayDate, DateTime.now());
+        !DateUtils.isSameDay(
+          aTask.startDate,
+          aTask.endDate,
+        ) &&
+        DateUtils.isSameDay(
+          a.displayDate,
+          DateTime.now(),
+        );
 
     final bIsTodayPeriod =
         bTask != null &&
-        !DateUtils.isSameDay(bTask.startDate, bTask.endDate) &&
-        DateUtils.isSameDay(b.displayDate, DateTime.now());
+        !DateUtils.isSameDay(
+          bTask.startDate,
+          bTask.endDate,
+        ) &&
+        DateUtils.isSameDay(
+          b.displayDate,
+          DateTime.now(),
+        );
 
     if (aIsTodayPeriod != bIsTodayPeriod) {
       return aIsTodayPeriod ? -1 : 1;
     }
 
-    // 同じ日の通常タスクでは、
-    // 日付のみ → 時刻指定の順。
     final aStartAt = aTask?.startAt;
     final bStartAt = bTask?.startAt;
 
@@ -536,9 +569,9 @@ List<_TimelineEntry> _buildTimelineEntries(List<Task> tasks) {
       }
     }
 
-    // 同条件なら開始日を基準にする。
     if (aTask != null && bTask != null) {
-      final startCompare = aTask.startDate.compareTo(bTask.startDate);
+      final startCompare =
+          aTask.startDate.compareTo(bTask.startDate);
 
       if (startCompare != 0) {
         return startCompare;
@@ -552,7 +585,11 @@ List<_TimelineEntry> _buildTimelineEntries(List<Task> tasks) {
 }
 
 DateTime _dateOnly(DateTime date) {
-  return DateTime(date.year, date.month, date.day);
+  return DateTime(
+    date.year,
+    date.month,
+    date.day,
+  );
 }
 
 class _TaskCard extends StatelessWidget {
@@ -569,32 +606,39 @@ class _TaskCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 48),
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(left: 52, top: 6, bottom: 6),
-                child: InkWell(
-                  onTap: onEdit,
-                  borderRadius: BorderRadius.circular(8),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onEdit,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 10,
+          ),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 48),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(
+                    left: 52,
+                    top: 6,
+                    bottom: 6,
+                  ),
                   child: _TaskContent(task: task),
                 ),
-              ),
-              Positioned(
-                top: 0,
-                left: 0,
-                child: Checkbox(
-                  value: task.isCompleted,
-                  onChanged: (_) {
-                    onToggleCompleted();
-                  },
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  child: Checkbox(
+                    value: task.isCompleted,
+                    onChanged: (_) {
+                      onToggleCompleted();
+                    },
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -603,38 +647,42 @@ class _TaskCard extends StatelessWidget {
 }
 
 class _DateTimeLabel extends StatelessWidget {
-  const _DateTimeLabel({required this.entry, required this.previousEntry});
+  const _DateTimeLabel({
+    required this.entry,
+    required this.previousEntry,
+  });
 
   final _TimelineEntry entry;
   final _TimelineEntry? previousEntry;
+
   @override
   Widget build(BuildContext context) {
     final task = entry.task;
-
     final date = entry.displayDate;
 
-    final isToday = DateUtils.isSameDay(date, DateTime.now());
+    final isToday = DateUtils.isSameDay(
+      date,
+      DateTime.now(),
+    );
 
     final dateText = isToday
         ? '${date.month}/${date.day} (今日)'
         : '${date.month}/${date.day}';
 
-    // 今日マーカー。
     if (task == null) {
       return Align(
         alignment: Alignment.topRight,
         child: Text(
           dateText,
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+          ),
           textAlign: TextAlign.right,
         ),
       );
     }
 
-    // 複数日にまたがるタスク。
-    //
-    // 開始位置でも今日の位置でも、
-    // 必ず「開始日 ～ 終了日」を表示する。
     if (!_isSameDate(task.startDate, task.endDate)) {
       final periodText =
           '${task.startDate.month}/${task.startDate.day}'
@@ -648,7 +696,10 @@ class _DateTimeLabel extends StatelessWidget {
           children: [
             Text(
               periodText,
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
               textAlign: TextAlign.right,
             ),
             if (task.startAt != null) ...[
@@ -664,13 +715,13 @@ class _DateTimeLabel extends StatelessWidget {
       );
     }
 
-    // 1日だけのタスク。
     final isFirstEntryOfDay =
         previousEntry == null ||
-        !DateUtils.isSameDay(previousEntry!.displayDate, entry.displayDate);
+        !DateUtils.isSameDay(
+          previousEntry!.displayDate,
+          entry.displayDate,
+        );
 
-    // 同じ日の2件目以降で時刻がない場合、
-    // 日付も時刻も表示しない。
     if (!isFirstEntryOfDay && task.startAt == null) {
       return const SizedBox.shrink();
     }
@@ -681,7 +732,8 @@ class _DateTimeLabel extends StatelessWidget {
     String? timeText;
 
     if (startAt != null && endAt != null) {
-      timeText = '${_formatTime(startAt)} ～ ${_formatTime(endAt)}';
+      timeText =
+          '${_formatTime(startAt)} ～ ${_formatTime(endAt)}';
     } else if (startAt != null) {
       timeText = _formatTime(startAt);
     }
@@ -694,11 +746,15 @@ class _DateTimeLabel extends StatelessWidget {
           if (isFirstEntryOfDay)
             Text(
               dateText,
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
               textAlign: TextAlign.right,
             ),
           if (timeText != null) ...[
-            if (isFirstEntryOfDay) const SizedBox(height: 2),
+            if (isFirstEntryOfDay)
+              const SizedBox(height: 2),
             Text(
               timeText,
               style: const TextStyle(fontSize: 12),
@@ -737,12 +793,16 @@ class _DateTimeLabel extends StatelessWidget {
   }
 
   bool _isSameDate(DateTime a, DateTime b) {
-    return a.year == b.year && a.month == b.month && a.day == b.day;
+    return a.year == b.year &&
+        a.month == b.month &&
+        a.day == b.day;
   }
 }
 
 class _TaskContent extends StatelessWidget {
-  const _TaskContent({required this.task});
+  const _TaskContent({
+    required this.task,
+  });
 
   final Task task;
 
@@ -756,11 +816,21 @@ class _TaskContent extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(task.title, style: TextStyle(decoration: textDecoration)),
+        Text(
+          task.title,
+          style: TextStyle(
+            decoration: textDecoration,
+          ),
+        ),
         if (task.description != null &&
             task.description!.trim().isNotEmpty) ...[
           const SizedBox(height: 4),
-          Text(task.description!, style: TextStyle(decoration: textDecoration)),
+          Text(
+            task.description!,
+            style: TextStyle(
+              decoration: textDecoration,
+            ),
+          ),
         ],
       ],
     );
@@ -775,6 +845,7 @@ class _TaskDraft {
     required this.endDate,
     required this.startAt,
     required this.endAt,
+    required this.reminderAt,
   });
 
   final String title;
@@ -783,6 +854,7 @@ class _TaskDraft {
   final DateTime endDate;
   final DateTime? startAt;
   final DateTime? endAt;
+  final DateTime? reminderAt;
 }
 
 class _TaskCreateDialog extends StatefulWidget {
@@ -794,317 +866,32 @@ class _TaskCreateDialog extends StatefulWidget {
 
 class _TaskCreateDialogState extends State<_TaskCreateDialog> {
   final _formKey = GlobalKey<FormState>();
+
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
 
   late DateTime _startDate;
   late DateTime _endDate;
+
   DateTime? _startAt;
   DateTime? _endAt;
+  DateTime? _reminderAt;
+
   String? _dateTimeError;
 
   @override
   void initState() {
     super.initState();
+
     final now = DateTime.now();
-    _startDate = DateTime(now.year, now.month, now.day);
+
+    _startDate = DateTime(
+      now.year,
+      now.month,
+      now.day,
+    );
+
     _endDate = _startDate;
-  }
-
-  @override
-  void dispose() {
-    _titleController.dispose();
-    _descriptionController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _selectStartDate() async {
-    final selected = await showDatePicker(
-      context: context,
-      initialDate: _startDate,
-      firstDate: DateTime(2000),
-      lastDate: DateTime(2100),
-    );
-    if (selected == null) return;
-
-    setState(() {
-      _startDate = _dateOnly(selected);
-      if (_endDate.isBefore(_startDate)) _endDate = _startDate;
-      _startAt = _withDate(_startDate, _startAt);
-      _endAt = _withDate(_endDate, _endAt);
-      _validateDateAndTime();
-    });
-  }
-
-  Future<void> _selectEndDate() async {
-    final selected = await showDatePicker(
-      context: context,
-      initialDate: _endDate,
-      firstDate: _startDate,
-      lastDate: DateTime(2100),
-    );
-    if (selected == null) return;
-
-    setState(() {
-      _endDate = _dateOnly(selected);
-      _endAt = _withDate(_endDate, _endAt);
-      _validateDateAndTime();
-    });
-  }
-
-  Future<void> _selectStartTime() async {
-    final selected = await showTimePicker(
-      context: context,
-      initialTime: _startAt == null
-          ? TimeOfDay.now()
-          : TimeOfDay.fromDateTime(_startAt!),
-    );
-    if (selected == null) return;
-
-    setState(() {
-      _startAt = DateTime(
-        _startDate.year,
-        _startDate.month,
-        _startDate.day,
-        selected.hour,
-        selected.minute,
-      );
-      _validateDateAndTime();
-    });
-  }
-
-  Future<void> _selectEndTime() async {
-    final selected = await showTimePicker(
-      context: context,
-      initialTime: _endAt == null
-          ? TimeOfDay.now()
-          : TimeOfDay.fromDateTime(_endAt!),
-    );
-    if (selected == null) return;
-
-    setState(() {
-      _endAt = DateTime(
-        _endDate.year,
-        _endDate.month,
-        _endDate.day,
-        selected.hour,
-        selected.minute,
-      );
-      _validateDateAndTime();
-    });
-  }
-
-  void _validateDateAndTime() {
-    _dateTimeError = TaskValidator.validate(
-      title: 'valid title',
-      startDate: _startDate,
-      endDate: _endDate,
-      startAt: _startAt,
-      endAt: _endAt,
-    );
-  }
-
-  void _save() {
-    _validateDateAndTime();
-    final formIsValid = _formKey.currentState!.validate();
-    if (!formIsValid || _dateTimeError != null) {
-      setState(() {});
-      return;
-    }
-
-    Navigator.of(context).pop(
-      _TaskDraft(
-        title: _titleController.text.trim(),
-        description: _descriptionController.text.trim().isEmpty
-            ? null
-            : _descriptionController.text.trim(),
-        startDate: _startDate,
-        endDate: _endDate,
-        startAt: _startAt,
-        endAt: _endAt,
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final hasTime = _startAt != null;
-
-    return AlertDialog(
-      title: const Text('タスクを追加'),
-      content: SingleChildScrollView(
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              TextFormField(
-                controller: _titleController,
-                autofocus: true,
-                maxLength: TaskValidator.maxTitleLength,
-                maxLengthEnforcement: MaxLengthEnforcement.none,
-                autovalidateMode: AutovalidateMode.onUserInteraction,
-                decoration: const InputDecoration(
-                  labelText: 'タイトル',
-                  border: OutlineInputBorder(),
-                ),
-                validator: (value) => TaskValidator.validate(
-                  title: value ?? '',
-                  startDate: _startDate,
-                  endDate: _endDate,
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _descriptionController,
-                maxLines: 5,
-                maxLength: TaskValidator.maxDescriptionLength,
-                maxLengthEnforcement: MaxLengthEnforcement.none,
-                autovalidateMode: AutovalidateMode.onUserInteraction,
-                decoration: const InputDecoration(
-                  labelText: '説明（任意・100字以内）',
-                  border: OutlineInputBorder(),
-                  alignLabelWithHint: true,
-                ),
-                validator: (value) => TaskValidator.validate(
-                  title: 'valid title',
-                  description: value,
-                  startDate: _startDate,
-                  endDate: _endDate,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                '日付',
-                style: Theme.of(context).textTheme.titleSmall
-                    ?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              _DateEditButton(
-                label: '開始日',
-                date: _startDate,
-                onPressed: _selectStartDate,
-              ),
-              const SizedBox(height: 8),
-              _DateEditButton(
-                label: '終了日',
-                date: _endDate,
-                onPressed: _selectEndDate,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                '時刻',
-                style: Theme.of(context).textTheme.titleSmall
-                    ?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              if (!hasTime)
-                OutlinedButton.icon(
-                  onPressed: _selectStartTime,
-                  icon: const Icon(Icons.access_time),
-                  label: const Text('時間を設定'),
-                )
-              else ...[
-                _TimeEditButton(
-                  label: '開始時刻',
-                  time: _startAt,
-                  onPressed: _selectStartTime,
-                ),
-                const SizedBox(height: 8),
-                _TimeEditButton(
-                  label: '終了時刻',
-                  time: _endAt,
-                  onPressed: _selectEndTime,
-                  clearEnabled: _endAt != null,
-                  onClear: () => setState(() {
-                    _endAt = null;
-                    _validateDateAndTime();
-                  }),
-                ),
-                TextButton(
-                  onPressed: () => setState(() {
-                    _startAt = null;
-                    _endAt = null;
-                    _validateDateAndTime();
-                  }),
-                  child: const Text('時刻を削除して日付のみの予定にする'),
-                ),
-              ],
-              if (_dateTimeError != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  _dateTimeError!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('キャンセル'),
-        ),
-        FilledButton(onPressed: _save, child: const Text('追加')),
-      ],
-    );
-  }
-
-  DateTime _dateOnly(DateTime value) =>
-      DateTime(value.year, value.month, value.day);
-
-  DateTime? _withDate(DateTime date, DateTime? time) => time == null
-      ? null
-      : DateTime(date.year, date.month, date.day, time.hour, time.minute);
-}
-
-class _EditDialogResult {
-  const _EditDialogResult({required this.task, required this.delete});
-
-  final Task task;
-  final bool delete;
-}
-
-class _TaskEditDialog extends StatefulWidget {
-  const _TaskEditDialog({required this.task});
-
-  final Task task;
-
-  @override
-  State<_TaskEditDialog> createState() => _TaskEditDialogState();
-}
-
-class _TaskEditDialogState extends State<_TaskEditDialog> {
-  late final TextEditingController _titleController;
-  late final TextEditingController _descriptionController;
-
-  late DateTime _startDate;
-  late DateTime _endDate;
-
-  DateTime? _startAt;
-  DateTime? _endAt;
-
-  String? _validationMessage;
-
-  @override
-  void initState() {
-    super.initState();
-
-    final task = widget.task;
-
-    _titleController = TextEditingController(text: task.title);
-
-    _descriptionController = TextEditingController(
-      text: task.description ?? '',
-    );
-
-    _startDate = _dateOnly(task.startDate);
-    _endDate = _dateOnly(task.endDate);
-
-    _startAt = task.startAt;
-    _endAt = task.endAt;
   }
 
   @override
@@ -1133,14 +920,27 @@ class _TaskEditDialogState extends State<_TaskEditDialog> {
         _endDate = _startDate;
       }
 
-      _validationMessage = null;
+      _startAt = _withDate(
+        _startDate,
+        _startAt,
+      );
+
+      _endAt = _withDate(
+        _endDate,
+        _endAt,
+      );
+
+      // 基準日時が変わったため、既存のリマインダーは解除。
+      _reminderAt = null;
+
+      _validateDateAndTime();
     });
   }
 
   Future<void> _selectEndDate() async {
     final selected = await showDatePicker(
       context: context,
-      initialDate: _endDate.isBefore(_startDate) ? _startDate : _endDate,
+      initialDate: _endDate,
       firstDate: _startDate,
       lastDate: DateTime(2100),
     );
@@ -1151,18 +951,24 @@ class _TaskEditDialogState extends State<_TaskEditDialog> {
 
     setState(() {
       _endDate = _dateOnly(selected);
-      _validationMessage = null;
+
+      _endAt = _withDate(
+        _endDate,
+        _endAt,
+      );
+
+      _reminderAt = null;
+
+      _validateDateAndTime();
     });
   }
 
   Future<void> _selectStartTime() async {
-    final initialTime = _startAt == null
-        ? TimeOfDay.now()
-        : TimeOfDay.fromDateTime(_startAt!);
-
     final selected = await showTimePicker(
       context: context,
-      initialTime: initialTime,
+      initialTime: _startAt == null
+          ? TimeOfDay.now()
+          : TimeOfDay.fromDateTime(_startAt!),
     );
 
     if (selected == null) {
@@ -1178,18 +984,18 @@ class _TaskEditDialogState extends State<_TaskEditDialog> {
         selected.minute,
       );
 
-      _validationMessage = null;
+      _reminderAt = null;
+
+      _validateDateAndTime();
     });
   }
 
   Future<void> _selectEndTime() async {
-    final initialTime = _endAt == null
-        ? TimeOfDay.now()
-        : TimeOfDay.fromDateTime(_endAt!);
-
     final selected = await showTimePicker(
       context: context,
-      initialTime: initialTime,
+      initialTime: _endAt == null
+          ? TimeOfDay.now()
+          : TimeOfDay.fromDateTime(_endAt!),
     );
 
     if (selected == null) {
@@ -1205,6 +1011,408 @@ class _TaskEditDialogState extends State<_TaskEditDialog> {
         selected.minute,
       );
 
+      _reminderAt = null;
+
+      _validateDateAndTime();
+    });
+  }
+
+  void _validateDateAndTime() {
+    _dateTimeError = TaskValidator.validate(
+      title: 'valid title',
+      startDate: _startDate,
+      endDate: _endDate,
+      startAt: _startAt,
+      endAt: _endAt,
+    );
+  }
+
+  void _save() {
+    _validateDateAndTime();
+
+    final formIsValid = _formKey.currentState!.validate();
+
+    if (!formIsValid || _dateTimeError != null) {
+      setState(() {});
+      return;
+    }
+
+    if (_reminderAt != null &&
+        !_reminderAt!.isAfter(DateTime.now())) {
+      setState(() {
+        _dateTimeError = 'リマインダーは現在より後の日時を指定してください。';
+      });
+      return;
+    }
+
+    Navigator.of(context).pop(
+      _TaskDraft(
+        title: _titleController.text.trim(),
+        description:
+            _descriptionController.text.trim().isEmpty
+                ? null
+                : _descriptionController.text.trim(),
+        startDate: _startDate,
+        endDate: _endDate,
+        startAt: _startAt,
+        endAt: _endAt,
+        reminderAt: _reminderAt,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasTime = _startAt != null;
+
+    return AlertDialog(
+      title: const Text('タスクを追加'),
+      content: SingleChildScrollView(
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextFormField(
+                controller: _titleController,
+                autofocus: true,
+                maxLength: TaskValidator.maxTitleLength,
+                maxLengthEnforcement: MaxLengthEnforcement.none,
+                autovalidateMode:
+                    AutovalidateMode.onUserInteraction,
+                decoration: const InputDecoration(
+                  labelText: 'タイトル',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) => TaskValidator.validate(
+                  title: value ?? '',
+                  startDate: _startDate,
+                  endDate: _endDate,
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _descriptionController,
+                maxLines: 5,
+                maxLength: TaskValidator.maxDescriptionLength,
+                maxLengthEnforcement: MaxLengthEnforcement.none,
+                autovalidateMode:
+                    AutovalidateMode.onUserInteraction,
+                decoration: const InputDecoration(
+                  labelText: '説明（任意・100字以内）',
+                  border: OutlineInputBorder(),
+                  alignLabelWithHint: true,
+                ),
+                validator: (value) => TaskValidator.validate(
+                  title: 'valid title',
+                  description: value,
+                  startDate: _startDate,
+                  endDate: _endDate,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                '日付',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              const SizedBox(height: 8),
+              _DateEditButton(
+                label: '開始日',
+                date: _startDate,
+                onPressed: _selectStartDate,
+              ),
+              const SizedBox(height: 8),
+              _DateEditButton(
+                label: '終了日',
+                date: _endDate,
+                onPressed: _selectEndDate,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                '時刻',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              const SizedBox(height: 8),
+              if (!hasTime)
+                OutlinedButton.icon(
+                  onPressed: _selectStartTime,
+                  icon: const Icon(Icons.access_time),
+                  label: const Text('時間を設定'),
+                )
+              else ...[
+                _TimeEditButton(
+                  label: '開始時刻',
+                  time: _startAt,
+                  onPressed: _selectStartTime,
+                ),
+                const SizedBox(height: 8),
+                _TimeEditButton(
+                  label: '終了時刻',
+                  time: _endAt,
+                  onPressed: _selectEndTime,
+                  clearEnabled: _endAt != null,
+                  onClear: () {
+                    setState(() {
+                      _endAt = null;
+                      _reminderAt = null;
+                      _validateDateAndTime();
+                    });
+                  },
+                ),
+                TextButton(
+                  onPressed: () {
+                    setState(() {
+                      _startAt = null;
+                      _endAt = null;
+                      _reminderAt = null;
+                      _validateDateAndTime();
+                    });
+                  },
+                  child: const Text(
+                    '時刻を削除して日付のみの予定にする',
+                  ),
+                ),
+              ],
+              const SizedBox(height: 16),
+              _ReminderSelector(
+                hasTime: hasTime,
+                startDate: _startDate,
+                startAt: _startAt,
+                initialReminderAt: _reminderAt,
+                onChanged: (value) {
+                  setState(() {
+                    _reminderAt = value;
+                  });
+                },
+              ),
+              if (_dateTimeError != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  _dateTimeError!,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('キャンセル'),
+        ),
+        FilledButton(
+          onPressed: _save,
+          child: const Text('追加'),
+        ),
+      ],
+    );
+  }
+
+  DateTime _dateOnly(DateTime value) {
+    return DateTime(
+      value.year,
+      value.month,
+      value.day,
+    );
+  }
+
+  DateTime? _withDate(
+    DateTime date,
+    DateTime? time,
+  ) {
+    if (time == null) {
+      return null;
+    }
+
+    return DateTime(
+      date.year,
+      date.month,
+      date.day,
+      time.hour,
+      time.minute,
+    );
+  }
+}
+
+class _EditDialogResult {
+  const _EditDialogResult({
+    required this.task,
+    required this.delete,
+  });
+
+  final Task task;
+  final bool delete;
+}
+
+class _TaskEditDialog extends StatefulWidget {
+  const _TaskEditDialog({
+    required this.task,
+  });
+
+  final Task task;
+
+  @override
+  State<_TaskEditDialog> createState() => _TaskEditDialogState();
+}
+
+class _TaskEditDialogState extends State<_TaskEditDialog> {
+  late final TextEditingController _titleController;
+  late final TextEditingController _descriptionController;
+
+  late DateTime _startDate;
+  late DateTime _endDate;
+
+  DateTime? _startAt;
+  DateTime? _endAt;
+  DateTime? _reminderAt;
+
+  String? _validationMessage;
+
+  @override
+  void initState() {
+    super.initState();
+
+    final task = widget.task;
+
+    _titleController = TextEditingController(
+      text: task.title,
+    );
+
+    _descriptionController = TextEditingController(
+      text: task.description ?? '',
+    );
+
+    _startDate = _dateOnly(task.startDate);
+    _endDate = _dateOnly(task.endDate);
+
+    _startAt = task.startAt;
+    _endAt = task.endAt;
+    _reminderAt = task.reminderAt;
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _selectStartDate() async {
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: _startDate,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+
+    if (selected == null) {
+      return;
+    }
+
+    setState(() {
+      _startDate = _dateOnly(selected);
+
+      if (_endDate.isBefore(_startDate)) {
+        _endDate = _startDate;
+      }
+
+      _startAt = _withDate(
+        _startDate,
+        _startAt,
+      );
+
+      _endAt = _withDate(
+        _endDate,
+        _endAt,
+      );
+
+      _reminderAt = null;
+      _validationMessage = null;
+    });
+  }
+
+  Future<void> _selectEndDate() async {
+    final selected = await showDatePicker(
+      context: context,
+      initialDate:
+          _endDate.isBefore(_startDate) ? _startDate : _endDate,
+      firstDate: _startDate,
+      lastDate: DateTime(2100),
+    );
+
+    if (selected == null) {
+      return;
+    }
+
+    setState(() {
+      _endDate = _dateOnly(selected);
+
+      _endAt = _withDate(
+        _endDate,
+        _endAt,
+      );
+
+      _reminderAt = null;
+      _validationMessage = null;
+    });
+  }
+
+  Future<void> _selectStartTime() async {
+    final selected = await showTimePicker(
+      context: context,
+      initialTime: _startAt == null
+          ? TimeOfDay.now()
+          : TimeOfDay.fromDateTime(_startAt!),
+    );
+
+    if (selected == null) {
+      return;
+    }
+
+    setState(() {
+      _startAt = DateTime(
+        _startDate.year,
+        _startDate.month,
+        _startDate.day,
+        selected.hour,
+        selected.minute,
+      );
+
+      _reminderAt = null;
+      _validationMessage = null;
+    });
+  }
+
+  Future<void> _selectEndTime() async {
+    final selected = await showTimePicker(
+      context: context,
+      initialTime: _endAt == null
+          ? TimeOfDay.now()
+          : TimeOfDay.fromDateTime(_endAt!),
+    );
+
+    if (selected == null) {
+      return;
+    }
+
+    setState(() {
+      _endAt = DateTime(
+        _endDate.year,
+        _endDate.month,
+        _endDate.day,
+        selected.hour,
+        selected.minute,
+      );
+
+      _reminderAt = null;
       _validationMessage = null;
     });
   }
@@ -1213,6 +1421,7 @@ class _TaskEditDialogState extends State<_TaskEditDialog> {
     setState(() {
       _startAt = null;
       _endAt = null;
+      _reminderAt = null;
       _validationMessage = null;
     });
   }
@@ -1220,6 +1429,7 @@ class _TaskEditDialogState extends State<_TaskEditDialog> {
   void _clearEndTime() {
     setState(() {
       _endAt = null;
+      _reminderAt = null;
       _validationMessage = null;
     });
   }
@@ -1227,6 +1437,7 @@ class _TaskEditDialogState extends State<_TaskEditDialog> {
   void _save() {
     final title = _titleController.text.trim();
     final description = _descriptionController.text.trim();
+
     final validationMessage = TaskValidator.validate(
       title: title,
       description: description,
@@ -1243,6 +1454,15 @@ class _TaskEditDialogState extends State<_TaskEditDialog> {
       return;
     }
 
+    if (_reminderAt != null &&
+        !_reminderAt!.isAfter(DateTime.now())) {
+      setState(() {
+        _validationMessage =
+            'リマインダーは現在より後の日時を指定してください。';
+      });
+      return;
+    }
+
     final updatedTask = Task(
       id: widget.task.id,
       title: title,
@@ -1252,15 +1472,24 @@ class _TaskEditDialogState extends State<_TaskEditDialog> {
       startAt: _startAt,
       endAt: _endAt,
       isCompleted: widget.task.isCompleted,
+      reminderAt: _reminderAt,
     );
 
-    Navigator.of(context)
-        .pop(_EditDialogResult(task: updatedTask, delete: false));
+    Navigator.of(context).pop(
+      _EditDialogResult(
+        task: updatedTask,
+        delete: false,
+      ),
+    );
   }
 
   void _delete() {
-    Navigator.of(context)
-        .pop(_EditDialogResult(task: widget.task, delete: true));
+    Navigator.of(context).pop(
+      _EditDialogResult(
+        task: widget.task,
+        delete: true,
+      ),
+    );
   }
 
   @override
@@ -1299,8 +1528,9 @@ class _TaskEditDialogState extends State<_TaskEditDialog> {
             const SizedBox(height: 20),
             Text(
               '日付',
-              style: Theme.of(context).textTheme.titleSmall
-                  ?.copyWith(fontWeight: FontWeight.bold),
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
             ),
             const SizedBox(height: 8),
             _DateEditButton(
@@ -1317,8 +1547,9 @@ class _TaskEditDialogState extends State<_TaskEditDialog> {
             const SizedBox(height: 20),
             Text(
               '時刻',
-              style: Theme.of(context).textTheme.titleSmall
-                  ?.copyWith(fontWeight: FontWeight.bold),
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
             ),
             const SizedBox(height: 8),
             if (!hasTime)
@@ -1330,7 +1561,7 @@ class _TaskEditDialogState extends State<_TaskEditDialog> {
             else ...[
               _TimeEditButton(
                 label: '開始時刻',
-                time: _startAt!,
+                time: _startAt,
                 onPressed: _selectStartTime,
               ),
               const SizedBox(height: 8),
@@ -1344,34 +1575,487 @@ class _TaskEditDialogState extends State<_TaskEditDialog> {
               const SizedBox(height: 4),
               TextButton(
                 onPressed: _clearStartTime,
-                child: const Text('時刻を削除して日付のみの予定にする'),
+                child: const Text(
+                  '時刻を削除して日付のみの予定にする',
+                ),
               ),
             ],
+            const SizedBox(height: 16),
+            _ReminderSelector(
+              hasTime: hasTime,
+              startDate: _startDate,
+              startAt: _startAt,
+              initialReminderAt: _reminderAt,
+              onChanged: (value) {
+                setState(() {
+                  _reminderAt = value;
+                });
+              },
+            ),
             if (_validationMessage != null) ...[
               const SizedBox(height: 12),
               Text(
                 _validationMessage!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.error,
+                ),
               ),
             ],
           ],
         ),
       ),
       actions: [
-        TextButton(onPressed: _delete, child: const Text('削除')),
         TextButton(
-          onPressed: () {
-            Navigator.of(context).pop();
-          },
+          onPressed: _delete,
+          child: const Text('削除'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
           child: const Text('キャンセル'),
         ),
-        FilledButton(onPressed: _save, child: const Text('保存')),
+        FilledButton(
+          onPressed: _save,
+          child: const Text('保存'),
+        ),
       ],
     );
   }
 
   DateTime _dateOnly(DateTime date) {
-    return DateTime(date.year, date.month, date.day);
+    return DateTime(
+      date.year,
+      date.month,
+      date.day,
+    );
+  }
+
+  DateTime? _withDate(
+    DateTime date,
+    DateTime? time,
+  ) {
+    if (time == null) {
+      return null;
+    }
+
+    return DateTime(
+      date.year,
+      date.month,
+      date.day,
+      time.hour,
+      time.minute,
+    );
+  }
+}
+
+/// リマインダーの選択UI。
+///
+/// UI上では「10分前」「1時間前」などの相対表現を使用するが、
+/// 親へ返す値は必ず絶対日時(DateTime)。
+class _ReminderSelector extends StatefulWidget {
+  const _ReminderSelector({
+    required this.hasTime,
+    required this.startDate,
+    required this.startAt,
+    required this.initialReminderAt,
+    required this.onChanged,
+  });
+
+  final bool hasTime;
+  final DateTime startDate;
+  final DateTime? startAt;
+  final DateTime? initialReminderAt;
+  final ValueChanged<DateTime?> onChanged;
+
+  @override
+  State<_ReminderSelector> createState() => _ReminderSelectorState();
+}
+
+class _ReminderSelectorState extends State<_ReminderSelector> {
+  static const String _none = 'none';
+  static const String _tenMinutes = 'ten_minutes';
+  static const String _oneHour = 'one_hour';
+  static const String _oneDayAtNine = 'one_day_at_nine';
+  static const String _custom = 'custom';
+
+  String _selectedValue = _none;
+
+  DateTime? _selectedReminderAt;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _selectedReminderAt = widget.initialReminderAt;
+
+    _selectedValue = _detectSelection(
+      widget.initialReminderAt,
+    );
+  }
+
+  @override
+  void didUpdateWidget(
+    covariant _ReminderSelector oldWidget,
+  ) {
+    super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.initialReminderAt !=
+            widget.initialReminderAt ||
+        oldWidget.startDate != widget.startDate ||
+        oldWidget.startAt != widget.startAt ||
+        oldWidget.hasTime != widget.hasTime) {
+      _selectedReminderAt = widget.initialReminderAt;
+
+      _selectedValue = _detectSelection(
+        widget.initialReminderAt,
+      );
+    }
+  }
+
+  String _detectSelection(DateTime? value) {
+    if (value == null) {
+      return _none;
+    }
+
+    if (widget.hasTime) {
+      final tenMinutes = _calculateTenMinutesBefore();
+      final oneHour = _calculateOneHourBefore();
+
+      if (tenMinutes != null && value == tenMinutes) {
+        return _tenMinutes;
+      }
+
+      if (oneHour != null && value == oneHour) {
+        return _oneHour;
+      }
+    } else {
+      final oneDayAtNine = _calculateOneDayAtNine();
+
+      if (oneDayAtNine != null && value == oneDayAtNine) {
+        return _oneDayAtNine;
+      }
+    }
+
+    return _custom;
+  }
+
+  DateTime? _baseDateTime() {
+    final startAt = widget.startAt;
+
+    if (startAt != null) {
+      return startAt;
+    }
+
+    return DateTime(
+      widget.startDate.year,
+      widget.startDate.month,
+      widget.startDate.day,
+      9,
+    );
+  }
+
+  DateTime? _calculateTenMinutesBefore() {
+    final base = _baseDateTime();
+
+    if (base == null) {
+      return null;
+    }
+
+    return base.subtract(
+      const Duration(minutes: 10),
+    );
+  }
+
+  DateTime? _calculateOneHourBefore() {
+    final base = _baseDateTime();
+
+    if (base == null) {
+      return null;
+    }
+
+    return base.subtract(
+      const Duration(hours: 1),
+    );
+  }
+
+  DateTime? _calculateOneDayAtNine() {
+    final dayBefore = widget.startDate.subtract(
+      const Duration(days: 1),
+    );
+
+    return DateTime(
+      dayBefore.year,
+      dayBefore.month,
+      dayBefore.day,
+      9,
+    );
+  }
+
+  bool _isFuture(DateTime? value) {
+    return value != null &&
+        value.isAfter(DateTime.now());
+  }
+
+  void _selectNone() {
+    setState(() {
+      _selectedValue = _none;
+      _selectedReminderAt = null;
+    });
+
+    widget.onChanged(null);
+  }
+
+  void _selectPreset(
+    String value,
+    DateTime reminderAt,
+  ) {
+    if (!_isFuture(reminderAt)) {
+      return;
+    }
+
+    setState(() {
+      _selectedValue = value;
+      _selectedReminderAt = reminderAt;
+    });
+
+    widget.onChanged(reminderAt);
+  }
+
+  Future<void> _selectCustom() async {
+    final previousValue = _selectedValue;
+    final previousReminderAt = _selectedReminderAt;
+
+    setState(() {
+      _selectedValue = _custom;
+    });
+
+    final selected = await _pickCustomDateTime(
+      initialDateTime:
+          previousReminderAt?.isAfter(DateTime.now()) == true
+              ? previousReminderAt!
+              : DateTime.now().add(
+                  const Duration(minutes: 10),
+                ),
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    if (selected == null) {
+      setState(() {
+        _selectedValue = previousValue;
+        _selectedReminderAt = previousReminderAt;
+      });
+      return;
+    }
+
+    if (!_isFuture(selected)) {
+      return;
+    }
+
+    setState(() {
+      _selectedValue = _custom;
+      _selectedReminderAt = selected;
+    });
+
+    widget.onChanged(selected);
+  }
+
+  Future<DateTime?> _pickCustomDateTime({
+    required DateTime initialDateTime,
+  }) async {
+    final now = DateTime.now();
+
+    final initialDate = initialDateTime.isBefore(now)
+        ? DateTime(
+            now.year,
+            now.month,
+            now.day,
+          )
+        : DateTime(
+            initialDateTime.year,
+            initialDateTime.month,
+            initialDateTime.day,
+          );
+
+    final selectedDate = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: DateTime(
+        now.year,
+        now.month,
+        now.day,
+      ),
+      lastDate: DateTime(2100),
+    );
+
+    if (selectedDate == null) {
+      return null;
+    }
+
+    if (!mounted) {
+      return null;
+    }
+
+    final initialTime = DateUtils.isSameDay(
+      selectedDate,
+      now,
+    )
+        ? TimeOfDay.fromDateTime(
+            now.add(const Duration(minutes: 10)),
+          )
+        : TimeOfDay.fromDateTime(initialDateTime);
+
+    final selectedTime = await showTimePicker(
+      context: context,
+      initialTime: initialTime,
+    );
+
+    if (selectedTime == null) {
+      return null;
+    }
+
+    return DateTime(
+      selectedDate.year,
+      selectedDate.month,
+      selectedDate.day,
+      selectedTime.hour,
+      selectedTime.minute,
+    );
+  }
+
+  String _formatDateTime(DateTime value) {
+    final date =
+        '${value.year}/${value.month}/${value.day}';
+
+    final hour =
+        value.hour.toString().padLeft(2, '0');
+
+    final minute =
+        value.minute.toString().padLeft(2, '0');
+
+    return '$date $hour:$minute';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tenMinutes = _calculateTenMinutesBefore();
+    final oneHour = _calculateOneHourBefore();
+    final oneDayAtNine = _calculateOneDayAtNine();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'リマインダー',
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+        ),
+        const SizedBox(height: 8),
+        RadioGroup<String>(
+          groupValue: _selectedValue,
+          onChanged: (value) {
+            if (value == null) {
+              return;
+            }
+
+            switch (value) {
+              case _none:
+                _selectNone();
+                break;
+
+              case _tenMinutes:
+                if (tenMinutes != null) {
+                  _selectPreset(
+                    _tenMinutes,
+                    tenMinutes,
+                  );
+                }
+                break;
+
+              case _oneHour:
+                if (oneHour != null) {
+                  _selectPreset(
+                    _oneHour,
+                    oneHour,
+                  );
+                }
+                break;
+
+              case _oneDayAtNine:
+                if (oneDayAtNine != null) {
+                  _selectPreset(
+                    _oneDayAtNine,
+                    oneDayAtNine,
+                  );
+                }
+                break;
+
+              case _custom:
+                _selectCustom();
+                break;
+            }
+          },
+          child: Column(
+            children: [
+              const RadioListTile<String>(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                title: Text('なし'),
+                value: _none,
+              ),
+              if (widget.hasTime) ...[
+                RadioListTile<String>(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  title: const Text('10分前'),
+                  subtitle: tenMinutes == null
+                      ? null
+                      : Text(_formatDateTime(tenMinutes)),
+                  value: _tenMinutes,
+                  enabled: _isFuture(tenMinutes),
+                ),
+                RadioListTile<String>(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  title: const Text('1時間前'),
+                  subtitle: oneHour == null
+                      ? null
+                      : Text(_formatDateTime(oneHour)),
+                  value: _oneHour,
+                  enabled: _isFuture(oneHour),
+                ),
+              ] else
+                RadioListTile<String>(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  title: const Text('1日前・朝9時'),
+                  subtitle: oneDayAtNine == null
+                      ? null
+                      : Text(_formatDateTime(oneDayAtNine)),
+                  value: _oneDayAtNine,
+                  enabled: _isFuture(oneDayAtNine),
+                ),
+              RadioListTile<String>(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                title: const Text('日時を指定'),
+                subtitle: _selectedValue == _custom &&
+                        _selectedReminderAt != null
+                    ? Text(
+                        _formatDateTime(
+                          _selectedReminderAt!,
+                        ),
+                      )
+                    : null,
+                value: _custom,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -1394,7 +2078,9 @@ class _DateEditButton extends StatelessWidget {
         minimumSize: const Size(double.infinity, 48),
         alignment: Alignment.centerLeft,
       ),
-      child: Text('$label  ${_formatDate(date)}'),
+      child: Text(
+        '$label  ${_formatDate(date)}',
+      ),
     );
   }
 
@@ -1430,7 +2116,9 @@ class _TimeEditButton extends StatelessWidget {
               alignment: Alignment.centerLeft,
             ),
             child: Text(
-              time == null ? '$label  未設定' : '$label  ${_formatTime(time!)}',
+              time == null
+                  ? '$label  未設定'
+                  : '$label  ${_formatTime(time!)}',
             ),
           ),
         ),

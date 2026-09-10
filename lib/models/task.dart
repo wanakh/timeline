@@ -13,24 +13,26 @@ class Task extends HiveObject {
   @HiveField(2)
   final String? description;
 
-  /// 予定の開始日
   @HiveField(3)
   final DateTime startDate;
 
-  /// 予定の終了日
   @HiveField(4)
   final DateTime endDate;
 
-  /// 開始時刻。日付だけの予定なら null。
   @HiveField(5)
   final DateTime? startAt;
 
-  /// 終了時刻。日付だけの予定なら null。
   @HiveField(6)
   final DateTime? endAt;
 
   @HiveField(7)
   bool isCompleted;
+
+  /// リマインダーを発火する絶対日時。
+  ///
+  /// null の場合はリマインダーなし。
+  @HiveField(8)
+  final DateTime? reminderAt;
 
   Task({
     required this.id,
@@ -41,5 +43,6 @@ class Task extends HiveObject {
     this.startAt,
     this.endAt,
     this.isCompleted = false,
+    this.reminderAt,
   });
 }
