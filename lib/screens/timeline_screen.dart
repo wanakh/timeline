@@ -160,12 +160,28 @@ class _TimelineLayoutConstants {
   const _TimelineLayoutConstants._();
 
   static const double tabletBreakpoint = 600;
+
+  // 日付・時刻表示領域
   static const double dateColumnRatio = 0.28;
   static const double minDateColumnWidth = 100;
   static const double maxPhoneDateColumnWidth = 125;
   static const double tabletDateColumnWidth = 140;
+
+  // 全体
   static const double horizontalPadding = 16;
+
+  // 日付・時刻 → タイムライン
   static const double dateToTimelineSpacing = 12;
+
+  // タイムライン
+  static const double timelineColumnWidth = 24;
+  static const double timelineLineWidth = 2;
+  static const double nodeSize = 12;
+
+  // タイムライン → タスク
+  static const double timelineToTaskSpacing = 12;
+
+  // タスク間
   static const double taskBottomSpacing = 16;
 
   static double dateColumnWidth(double availableWidth) {
@@ -358,6 +374,7 @@ class _TaskTimelineState extends State<_TaskTimeline> {
                   entry: entries[index],
                   previousEntry:
                       index == 0 ? null : entries[index - 1],
+                  isLast: index == entries.length - 1,
                   dateColumnWidth: dateColumnWidth,
                   onToggleCompleted: widget.onToggleCompleted,
                   onEdit: widget.onEdit,
@@ -375,16 +392,17 @@ class _TimelineListItem extends StatelessWidget {
   const _TimelineListItem({
     required this.entry,
     required this.previousEntry,
+    required this.isLast,
     required this.dateColumnWidth,
     required this.onToggleCompleted,
     required this.onEdit,
   });
 
-  static const double _nodeColumnWidth = 24;
-
   final _TimelineEntry entry;
   final _TimelineEntry? previousEntry;
+  final bool isLast;
   final double dateColumnWidth;
+
   final Future<void> Function(Task task) onToggleCompleted;
   final Future<void> Function(Task task) onEdit;
 
@@ -394,76 +412,125 @@ class _TimelineListItem extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
 
     return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          SizedBox(
-            width: dateColumnWidth,
-            child: Padding(
-              padding: const EdgeInsets.only(
-                right: _TimelineLayoutConstants.dateToTimelineSpacing,
-              ),
-              child: _DateTimeLabel(
-                entry: entry,
-                previousEntry: previousEntry,
+      child: Padding(
+        padding: EdgeInsets.only(
+          bottom: isLast
+              ? 0
+              : _TimelineLayoutConstants.taskBottomSpacing,
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // 日付・時刻
+            SizedBox(
+              width: dateColumnWidth,
+              child: Padding(
+                padding: const EdgeInsets.only(
+                  right: _TimelineLayoutConstants.dateToTimelineSpacing,
+                ),
+                child: _DateTimeLabel(
+                  entry: entry,
+                  previousEntry: previousEntry,
+                ),
               ),
             ),
-          ),
-          SizedBox(
-            width: _nodeColumnWidth,
-            child: Stack(
-              children: [
-                Positioned(
-                  top: 0,
-                  bottom: 0,
-                  left: (_nodeColumnWidth - 2) / 2,
-                  child: Container(
-                    width: 2,
-                    color: colorScheme.outlineVariant,
-                  ),
-                ),
-                Align(
-                  alignment: Alignment.topCenter,
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: GestureDetector(
-                      onTap: task == null
-                          ? null
-                          : () => onToggleCompleted(task),
+
+            // タイムライン
+            SizedBox(
+              width: _TimelineLayoutConstants.timelineColumnWidth,
+              child: Stack(
+                clipBehavior: Clip.none,
+                alignment: Alignment.center,
+                children: [
+                  // 線はタスク間の余白まで延長する。
+                  //
+                  // 各行の線が次の行の先頭まで届くため、
+                  // タスク間で線が途切れない。
+                  if (!isLast)
+                    Positioned(
+                      top: 0,
+                      left: (_TimelineLayoutConstants
+                                  .timelineColumnWidth -
+                              _TimelineLayoutConstants
+                                  .timelineLineWidth) /
+                          2,
+                      bottom: -_TimelineLayoutConstants
+                          .taskBottomSpacing,
                       child: Container(
-                        width: 12,
-                        height: 12,
-                        decoration: BoxDecoration(
-                          color: task?.isCompleted == true
-                              ? Colors.grey
-                              : colorScheme.primary,
-                          shape: BoxShape.circle,
+                        width:
+                            _TimelineLayoutConstants.timelineLineWidth,
+                        color: colorScheme.outlineVariant,
+                      ),
+                    )
+                  else
+                    Positioned(
+                      top: 0,
+                      bottom: 0,
+                      left: (_TimelineLayoutConstants
+                                  .timelineColumnWidth -
+                              _TimelineLayoutConstants
+                                  .timelineLineWidth) /
+                          2,
+                      child: Container(
+                        width:
+                            _TimelineLayoutConstants.timelineLineWidth,
+                        color: colorScheme.outlineVariant,
+                      ),
+                    ),
+
+                  // タスクノード
+                  if (task != null)
+                    Center(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => onToggleCompleted(task),
+                        child: SizedBox(
+                          width: 44,
+                          height: 44,
+                          child: Center(
+                            child: Container(
+                              width:
+                                  _TimelineLayoutConstants.nodeSize,
+                              height:
+                                  _TimelineLayoutConstants.nodeSize,
+                              decoration: BoxDecoration(
+                                color: task.isCompleted
+                                    ? Colors.grey
+                                    : colorScheme.primary,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                     ),
+                ],
+              ),
+            ),
+
+            const SizedBox(
+              width: _TimelineLayoutConstants.timelineToTaskSpacing,
+            ),
+
+            // タスク本文
+            if (task != null)
+              Expanded(
+                child: InkWell(
+                  onTap: () => onEdit(task),
+                  borderRadius: BorderRadius.zero,
+                  child: _TaskContent(
+                    task: task,
                   ),
                 ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: task == null
-                ? const SizedBox(height: 40)
-                : Padding(
-                    padding: const EdgeInsets.only(
-                      left: 12,
-                      bottom:
-                          _TimelineLayoutConstants.taskBottomSpacing,
-                    ),
-                    child: _TaskCard(
-                      task: task,
-                      onToggleCompleted: () =>
-                          onToggleCompleted(task),
-                      onEdit: () => onEdit(task),
-                    ),
-                  ),
-          ),
-        ],
+              )
+            else
+              const Expanded(
+                child: SizedBox(
+                  height: 40,
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -488,19 +555,10 @@ List<_TimelineEntry> _buildTimelineEntries(List<Task> tasks) {
         isOriginalStart: true,
       ),
     );
-
-    if (task.startDate.isBefore(today) &&
-        !task.endDate.isBefore(today)) {
-      entries.add(
-        _TimelineEntry(
-          task: task,
-          displayDate: today,
-          isOriginalStart: false,
-        ),
-      );
-    }
   }
 
+  // 今日の位置を確保するためのマーカー。
+  // タスクを複製するのではなく、今日という日付だけを表示する。
   entries.add(
     _TimelineEntry(
       task: null,
@@ -517,6 +575,7 @@ List<_TimelineEntry> _buildTimelineEntries(List<Task> tasks) {
       return dateCompare;
     }
 
+    // 今日マーカーは、その日の先頭に置く。
     if (a.isTodayMarker != b.isTodayMarker) {
       return a.isTodayMarker ? -1 : 1;
     }
@@ -524,35 +583,14 @@ List<_TimelineEntry> _buildTimelineEntries(List<Task> tasks) {
     final aTask = a.task;
     final bTask = b.task;
 
-    final aIsTodayPeriod =
-        aTask != null &&
-        !DateUtils.isSameDay(
-          aTask.startDate,
-          aTask.endDate,
-        ) &&
-        DateUtils.isSameDay(
-          a.displayDate,
-          DateTime.now(),
-        );
-
-    final bIsTodayPeriod =
-        bTask != null &&
-        !DateUtils.isSameDay(
-          bTask.startDate,
-          bTask.endDate,
-        ) &&
-        DateUtils.isSameDay(
-          b.displayDate,
-          DateTime.now(),
-        );
-
-    if (aIsTodayPeriod != bIsTodayPeriod) {
-      return aIsTodayPeriod ? -1 : 1;
+    if (aTask == null || bTask == null) {
+      return 0;
     }
 
-    final aStartAt = aTask?.startAt;
-    final bStartAt = bTask?.startAt;
+    final aStartAt = aTask.startAt;
+    final bStartAt = bTask.startAt;
 
+    // 日付のみのタスクを先に表示。
     if (aStartAt == null && bStartAt != null) {
       return -1;
     }
@@ -561,24 +599,19 @@ List<_TimelineEntry> _buildTimelineEntries(List<Task> tasks) {
       return 1;
     }
 
+    // 時刻ありの場合は開始時刻順。
     if (aStartAt != null && bStartAt != null) {
-      final timeCompare = aStartAt.compareTo(bStartAt);
+      final timeCompare = _timeOnly(aStartAt).compareTo(
+        _timeOnly(bStartAt),
+      );
 
       if (timeCompare != 0) {
         return timeCompare;
       }
     }
 
-    if (aTask != null && bTask != null) {
-      final startCompare =
-          aTask.startDate.compareTo(bTask.startDate);
-
-      if (startCompare != 0) {
-        return startCompare;
-      }
-    }
-
-    return 0;
+    // 同条件の場合は元の開始日時で安定させる。
+    return aTask.startDate.compareTo(bTask.startDate);
   });
 
   return entries;
@@ -592,58 +625,14 @@ DateTime _dateOnly(DateTime date) {
   );
 }
 
-class _TaskCard extends StatelessWidget {
-  const _TaskCard({
-    required this.task,
-    required this.onToggleCompleted,
-    required this.onEdit,
-  });
-
-  final Task task;
-  final Future<void> Function() onToggleCompleted;
-  final Future<void> Function() onEdit;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onEdit,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 12,
-            vertical: 10,
-          ),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 48),
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(
-                    left: 52,
-                    top: 6,
-                    bottom: 6,
-                  ),
-                  child: _TaskContent(task: task),
-                ),
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  child: Checkbox(
-                    value: task.isCompleted,
-                    onChanged: (_) {
-                      onToggleCompleted();
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+DateTime _timeOnly(DateTime date) {
+  return DateTime(
+    2000,
+    1,
+    1,
+    date.hour,
+    date.minute,
+  );
 }
 
 class _DateTimeLabel extends StatelessWidget {
@@ -683,6 +672,7 @@ class _DateTimeLabel extends StatelessWidget {
       );
     }
 
+    // 期間タスク
     if (!_isSameDate(task.startDate, task.endDate)) {
       final periodText =
           '${task.startDate.month}/${task.startDate.day}'
@@ -706,7 +696,9 @@ class _DateTimeLabel extends StatelessWidget {
               const SizedBox(height: 2),
               Text(
                 _formatPeriodTime(task),
-                style: const TextStyle(fontSize: 12),
+                style: const TextStyle(
+                  fontSize: 12,
+                ),
                 textAlign: TextAlign.right,
               ),
             ],
@@ -757,7 +749,9 @@ class _DateTimeLabel extends StatelessWidget {
               const SizedBox(height: 2),
             Text(
               timeText,
-              style: const TextStyle(fontSize: 12),
+              style: const TextStyle(
+                fontSize: 12,
+              ),
               textAlign: TextAlign.right,
             ),
           ],
@@ -812,27 +806,39 @@ class _TaskContent extends StatelessWidget {
         ? TextDecoration.lineThrough
         : TextDecoration.none;
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          task.title,
-          style: TextStyle(
-            decoration: textDecoration,
-          ),
-        ),
-        if (task.description != null &&
-            task.description!.trim().isNotEmpty) ...[
-          const SizedBox(height: 4),
+    final textColor = task.isCompleted
+        ? Theme.of(context).colorScheme.onSurfaceVariant
+        : Theme.of(context).colorScheme.onSurface;
+
+    return Padding(
+      padding: const EdgeInsets.only(
+        top: 4,
+        bottom: 4,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           Text(
-            task.description!,
+            task.title,
             style: TextStyle(
+              color: textColor,
               decoration: textDecoration,
             ),
           ),
+          if (task.description != null &&
+              task.description!.trim().isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              task.description!,
+              style: TextStyle(
+                color: textColor,
+                decoration: textDecoration,
+              ),
+            ),
+          ],
         ],
-      ],
+      ),
     );
   }
 }
