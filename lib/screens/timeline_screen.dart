@@ -1180,9 +1180,6 @@ class _TaskCreateDialogState extends State<_TaskCreateDialog> {
               ],
               const SizedBox(height: 16),
               _ReminderSelector(
-                hasTime: hasTime,
-                startDate: _startDate,
-                startAt: _startAt,
                 initialReminderAt: _reminderAt,
                 onChanged: (value) {
                   setState(() {
@@ -1582,9 +1579,6 @@ class _TaskEditDialogState extends State<_TaskEditDialog> {
             ],
             const SizedBox(height: 16),
             _ReminderSelector(
-              hasTime: hasTime,
-              startDate: _startDate,
-              startAt: _startAt,
               initialReminderAt: _reminderAt,
               onChanged: (value) {
                 setState(() {
@@ -1649,20 +1643,14 @@ class _TaskEditDialogState extends State<_TaskEditDialog> {
 
 /// リマインダーの選択UI。
 ///
-/// UI上では「10分前」「1時間前」などの相対表現を使用するが、
-/// 親へ返す値は必ず絶対日時(DateTime)。
+/// リマインダーは「なし」または「カスタム日時」の2択とする。
+/// 保存する値は常に絶対日時(DateTime)で、相対的なプリセットは持たない。
 class _ReminderSelector extends StatefulWidget {
   const _ReminderSelector({
-    required this.hasTime,
-    required this.startDate,
-    required this.startAt,
     required this.initialReminderAt,
     required this.onChanged,
   });
 
-  final bool hasTime;
-  final DateTime startDate;
-  final DateTime? startAt;
   final DateTime? initialReminderAt;
   final ValueChanged<DateTime?> onChanged;
 
@@ -1672,24 +1660,19 @@ class _ReminderSelector extends StatefulWidget {
 
 class _ReminderSelectorState extends State<_ReminderSelector> {
   static const String _none = 'none';
-  static const String _tenMinutes = 'ten_minutes';
-  static const String _oneHour = 'one_hour';
-  static const String _oneDayAtNine = 'one_day_at_nine';
   static const String _custom = 'custom';
 
   String _selectedValue = _none;
-
   DateTime? _selectedReminderAt;
+  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
 
     _selectedReminderAt = widget.initialReminderAt;
-
-    _selectedValue = _detectSelection(
-      widget.initialReminderAt,
-    );
+    _selectedValue =
+        widget.initialReminderAt == null ? _none : _custom;
   }
 
   @override
@@ -1698,143 +1681,36 @@ class _ReminderSelectorState extends State<_ReminderSelector> {
   ) {
     super.didUpdateWidget(oldWidget);
 
-    if (oldWidget.initialReminderAt !=
-            widget.initialReminderAt ||
-        oldWidget.startDate != widget.startDate ||
-        oldWidget.startAt != widget.startAt ||
-        oldWidget.hasTime != widget.hasTime) {
+    if (oldWidget.initialReminderAt != widget.initialReminderAt) {
       _selectedReminderAt = widget.initialReminderAt;
-
-      _selectedValue = _detectSelection(
-        widget.initialReminderAt,
-      );
+      _selectedValue =
+          widget.initialReminderAt == null ? _none : _custom;
+      _errorMessage = null;
     }
-  }
-
-  String _detectSelection(DateTime? value) {
-    if (value == null) {
-      return _none;
-    }
-
-    if (widget.hasTime) {
-      final tenMinutes = _calculateTenMinutesBefore();
-      final oneHour = _calculateOneHourBefore();
-
-      if (tenMinutes != null && value == tenMinutes) {
-        return _tenMinutes;
-      }
-
-      if (oneHour != null && value == oneHour) {
-        return _oneHour;
-      }
-    } else {
-      final oneDayAtNine = _calculateOneDayAtNine();
-
-      if (oneDayAtNine != null && value == oneDayAtNine) {
-        return _oneDayAtNine;
-      }
-    }
-
-    return _custom;
-  }
-
-  DateTime? _baseDateTime() {
-    final startAt = widget.startAt;
-
-    if (startAt != null) {
-      return startAt;
-    }
-
-    return DateTime(
-      widget.startDate.year,
-      widget.startDate.month,
-      widget.startDate.day,
-      9,
-    );
-  }
-
-  DateTime? _calculateTenMinutesBefore() {
-    final base = _baseDateTime();
-
-    if (base == null) {
-      return null;
-    }
-
-    return base.subtract(
-      const Duration(minutes: 10),
-    );
-  }
-
-  DateTime? _calculateOneHourBefore() {
-    final base = _baseDateTime();
-
-    if (base == null) {
-      return null;
-    }
-
-    return base.subtract(
-      const Duration(hours: 1),
-    );
-  }
-
-  DateTime? _calculateOneDayAtNine() {
-    final dayBefore = widget.startDate.subtract(
-      const Duration(days: 1),
-    );
-
-    return DateTime(
-      dayBefore.year,
-      dayBefore.month,
-      dayBefore.day,
-      9,
-    );
-  }
-
-  bool _isFuture(DateTime? value) {
-    return value != null &&
-        value.isAfter(DateTime.now());
   }
 
   void _selectNone() {
     setState(() {
       _selectedValue = _none;
       _selectedReminderAt = null;
+      _errorMessage = null;
     });
 
     widget.onChanged(null);
-  }
-
-  void _selectPreset(
-    String value,
-    DateTime reminderAt,
-  ) {
-    if (!_isFuture(reminderAt)) {
-      return;
-    }
-
-    setState(() {
-      _selectedValue = value;
-      _selectedReminderAt = reminderAt;
-    });
-
-    widget.onChanged(reminderAt);
   }
 
   Future<void> _selectCustom() async {
     final previousValue = _selectedValue;
     final previousReminderAt = _selectedReminderAt;
 
-    setState(() {
-      _selectedValue = _custom;
-    });
+    final now = DateTime.now();
+    final initialDateTime = previousReminderAt != null &&
+            previousReminderAt.isAfter(now)
+        ? previousReminderAt
+        : now.add(const Duration(minutes: 10));
 
     final selected = await _pickCustomDateTime(
-      initialDateTime:
-          previousReminderAt?.isAfter(DateTime.now()) == true
-              ? previousReminderAt!
-              : DateTime.now().add(
-                  const Duration(minutes: 10),
-                ),
+      initialDateTime: initialDateTime,
     );
 
     if (!mounted) {
@@ -1849,13 +1725,19 @@ class _ReminderSelectorState extends State<_ReminderSelector> {
       return;
     }
 
-    if (!_isFuture(selected)) {
+    if (!selected.isAfter(DateTime.now())) {
+      setState(() {
+        _selectedValue = previousValue;
+        _selectedReminderAt = previousReminderAt;
+        _errorMessage = '現在より後の日時を指定してください。';
+      });
       return;
     }
 
     setState(() {
       _selectedValue = _custom;
       _selectedReminderAt = selected;
+      _errorMessage = null;
     });
 
     widget.onChanged(selected);
@@ -1865,13 +1747,10 @@ class _ReminderSelectorState extends State<_ReminderSelector> {
     required DateTime initialDateTime,
   }) async {
     final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
 
-    final initialDate = initialDateTime.isBefore(now)
-        ? DateTime(
-            now.year,
-            now.month,
-            now.day,
-          )
+    final initialDate = initialDateTime.isBefore(today)
+        ? today
         : DateTime(
             initialDateTime.year,
             initialDateTime.month,
@@ -1881,29 +1760,26 @@ class _ReminderSelectorState extends State<_ReminderSelector> {
     final selectedDate = await showDatePicker(
       context: context,
       initialDate: initialDate,
-      firstDate: DateTime(
-        now.year,
-        now.month,
-        now.day,
-      ),
+      firstDate: today,
       lastDate: DateTime(2100),
     );
 
-    if (selectedDate == null) {
+    if (selectedDate == null || !mounted) {
       return null;
     }
 
-    if (!mounted) {
-      return null;
-    }
-
-    final initialTime = DateUtils.isSameDay(
+    final currentNow = DateTime.now();
+    final isToday = DateUtils.isSameDay(
       selectedDate,
-      now,
-    )
-        ? TimeOfDay.fromDateTime(
-            now.add(const Duration(minutes: 10)),
-          )
+      currentNow,
+    );
+
+    final defaultInitialTime = currentNow.add(
+      const Duration(minutes: 10),
+    );
+
+    final initialTime = isToday
+        ? TimeOfDay.fromDateTime(defaultInitialTime)
         : TimeOfDay.fromDateTime(initialDateTime);
 
     final selectedTime = await showTimePicker(
@@ -1911,38 +1787,38 @@ class _ReminderSelectorState extends State<_ReminderSelector> {
       initialTime: initialTime,
     );
 
-    if (selectedTime == null) {
+    if (selectedTime == null || !mounted) {
       return null;
     }
 
-    return DateTime(
+    final selectedDateTime = DateTime(
       selectedDate.year,
       selectedDate.month,
       selectedDate.day,
       selectedTime.hour,
       selectedTime.minute,
     );
+
+    if (!selectedDateTime.isAfter(DateTime.now())) {
+      setState(() {
+        _errorMessage = '現在より後の日時を指定してください。';
+      });
+      return null;
+    }
+
+    return selectedDateTime;
   }
 
   String _formatDateTime(DateTime value) {
-    final date =
-        '${value.year}/${value.month}/${value.day}';
-
-    final hour =
-        value.hour.toString().padLeft(2, '0');
-
-    final minute =
-        value.minute.toString().padLeft(2, '0');
+    final date = '${value.year}/${value.month}/${value.day}';
+    final hour = value.hour.toString().padLeft(2, '0');
+    final minute = value.minute.toString().padLeft(2, '0');
 
     return '$date $hour:$minute';
   }
 
   @override
   Widget build(BuildContext context) {
-    final tenMinutes = _calculateTenMinutesBefore();
-    final oneHour = _calculateOneHourBefore();
-    final oneDayAtNine = _calculateOneDayAtNine();
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1964,34 +1840,6 @@ class _ReminderSelectorState extends State<_ReminderSelector> {
               case _none:
                 _selectNone();
                 break;
-
-              case _tenMinutes:
-                if (tenMinutes != null) {
-                  _selectPreset(
-                    _tenMinutes,
-                    tenMinutes,
-                  );
-                }
-                break;
-
-              case _oneHour:
-                if (oneHour != null) {
-                  _selectPreset(
-                    _oneHour,
-                    oneHour,
-                  );
-                }
-                break;
-
-              case _oneDayAtNine:
-                if (oneDayAtNine != null) {
-                  _selectPreset(
-                    _oneDayAtNine,
-                    oneDayAtNine,
-                  );
-                }
-                break;
-
               case _custom:
                 _selectCustom();
                 break;
@@ -2005,55 +1853,37 @@ class _ReminderSelectorState extends State<_ReminderSelector> {
                 title: Text('なし'),
                 value: _none,
               ),
-              if (widget.hasTime) ...[
-                RadioListTile<String>(
-                  contentPadding: EdgeInsets.zero,
-                  dense: true,
-                  title: const Text('10分前'),
-                  subtitle: tenMinutes == null
-                      ? null
-                      : Text(_formatDateTime(tenMinutes)),
-                  value: _tenMinutes,
-                  enabled: _isFuture(tenMinutes),
-                ),
-                RadioListTile<String>(
-                  contentPadding: EdgeInsets.zero,
-                  dense: true,
-                  title: const Text('1時間前'),
-                  subtitle: oneHour == null
-                      ? null
-                      : Text(_formatDateTime(oneHour)),
-                  value: _oneHour,
-                  enabled: _isFuture(oneHour),
-                ),
-              ] else
-                RadioListTile<String>(
-                  contentPadding: EdgeInsets.zero,
-                  dense: true,
-                  title: const Text('1日前・朝9時'),
-                  subtitle: oneDayAtNine == null
-                      ? null
-                      : Text(_formatDateTime(oneDayAtNine)),
-                  value: _oneDayAtNine,
-                  enabled: _isFuture(oneDayAtNine),
-                ),
               RadioListTile<String>(
                 contentPadding: EdgeInsets.zero,
                 dense: true,
-                title: const Text('日時を指定'),
-                subtitle: _selectedValue == _custom &&
-                        _selectedReminderAt != null
-                    ? Text(
-                        _formatDateTime(
-                          _selectedReminderAt!,
-                        ),
-                      )
-                    : null,
+                title: const Text('カスタム'),
+                subtitle: _selectedReminderAt == null
+                    ? const Text('日時を指定')
+                    : Text(
+                        _formatDateTime(_selectedReminderAt!),
+                      ),
                 value: _custom,
               ),
             ],
           ),
         ),
+        if (_selectedValue == _custom && _selectedReminderAt != null) ...[
+          const SizedBox(height: 4),
+          OutlinedButton.icon(
+            onPressed: _selectCustom,
+            icon: const Icon(Icons.edit_calendar),
+            label: const Text('日時を変更'),
+          ),
+        ],
+        if (_errorMessage != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            _errorMessage!,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.error,
+            ),
+          ),
+        ],
       ],
     );
   }
