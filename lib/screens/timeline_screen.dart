@@ -175,7 +175,7 @@ class _TimelineLayoutConstants {
 
   // タイムライン
   static const double timelineColumnWidth = 24;
-  static const double timelineLineWidth = 2;
+  static const double timelineLineWidth = 3;
   static const double nodeSize = 12;
 
   // タイムライン → タスク
